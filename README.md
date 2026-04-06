@@ -1,4 +1,12 @@
-# Semantic layer + SQL expert system (portfolio)
+# SQL expert system + semantic layer (portfolio)
+
+## Expert system first—also a semantic layer
+
+**Primary lens: expert system.** The pattern here is classic **knowledge-based inference**: qualitative business facts (classifications, regions, rating bands) are turned into a **fixed feature basis**, **expert-curated weights** encode how each candidate outcome “matches” those features, and a **deterministic decision rule** picks exactly one outcome per observation. The rules and weights are **maintained by people** (governed updates), not learned from gradients—so the behavior is **auditable** and **explainable** end-to-end.
+
+**Same system as a semantic layer.** In production it also sat in the **semantic layer** role: fund-owned dimensions and **optional overrides** on top of a **vendor reference taxonomy** (here stylized as `ald_*`), so reporting and routing could use **effective** labels without discarding vendor lineage. The business story is “whose labels win for this analysis?”—that is semantic-layer work—even though the **engine** is an expert system under the hood.
+
+**Original article title:** [Building a Semantic Layer Using AI](https://dispassionatedeveloper.blogspot.com/2020/04/building-sql-based-expert-system-for.html) foregrounds the **semantic layer** problem (and how AI-assisted tooling helped experts encode knowledge). The **SQL implementation** is the expert-system shape: kernelized categorical inputs, linear scoring, and a discrete winner—see **[Kernelization, matmul, and gating](#kernelization-matrix-multiply-and-gating-neural-network-analogy)** below.
 
 ## Situation & solution (read this first)
 
@@ -14,7 +22,7 @@
 
 This repository is a **public, synthetic** companion to a production system I designed and built at a former employer. **Technical primer** (linear algebra, argmax gate): **How the scoring engine works**. **Sample I/O** (vendor vs fund vs effective): **Demo data model** and **Worked example**.
 
-**Original write-up (2019 context, published 2020):** [Building a Semantic Layer Using AI](https://dispassionatedeveloper.blogspot.com/2020/04/building-sql-based-expert-system-for.html)
+**Original write-up (2019 context, published 2020):** [Building a Semantic Layer Using AI](https://dispassionatedeveloper.blogspot.com/2020/04/building-sql-based-expert-system-for.html) — title emphasizes the **semantic layer**; the body is the **SQL expert system** pipeline documented here.
 
 ## What this repo is for
 
@@ -23,6 +31,16 @@ This repository is a **public, synthetic** companion to a production system I de
 - **Not a reproduction:** No proprietary schemas, data, or code from the employer; ISINs and attributes are **fabricated** for pedagogy.
 
 ## How the scoring engine works
+
+### Kernelization, matrix multiply, and gating (neural-network analogy)
+
+**Qualitative → numeric.** Vendor and fund-side fields are **categorical** (issuer class, region, rating band, …). **Kernelization** maps each row’s **effective** labels into a **sparse binary vector** $d_j \in \{0,1\}^M$ over a **fixed dictionary** of atomic features (e.g. `fi_corporate`, `region_emea`). That step is the bridge from **qualitative data** to something algebra can consume—without pretending the categories were already real numbers.
+
+**Matrix multiplication.** Stacking outcome weight rows gives a matrix $K$; stacking observation columns gives $D$. The score block $S = K D$ is exactly **matrix multiplication**: each cell is a dot product $\langle k_i, d_j\rangle$. In SQL this shows up as joins and `SUM` over active features—the same inner-product pattern as a **linear layer** in a neural network, except $K$ is **frozen** and **hand-authored**.
+
+**Logic gating.** The discrete choice $\arg\max_i s_{ij}$ (with a fixed tie-break) is a **hard winner-take-all gate**: one outcome “on,” the rest “off.” There is **no softmax**, **no depth**, and **no training loop** in this artifact.
+
+**Resemblance to a tiny net.** If you treat $d_j$ as an input vector and each $k_i$ as a row of weights, the pipeline is **one linear layer** (the multiply) followed by an **argmax-style nonlinearity**—the shallowest possible “which logit wins” head. It is useful to explain to ML-literate stakeholders as a **deliberately minimal** network fragment: same **matmul + nonlinear decision** idea, but **interpretable**, **rule-governed**, and **not** gradient-fit. Deeper nets stack many such layers with learned weights; here, depth is traded for **transparency** and **operational control**.
 
 ### Stakeholder view (what each “run” decides)
 
@@ -56,7 +74,7 @@ $$
 i^\star(j) \in \arg\max_{i=1,\ldots,N} s_{ij},
 $$
 
-with a **deterministic tie-break** among argmax ties (smallest `rule_id` in the demo). That is **winner-take-all gating**: no softmax, no temperature, **no gradient-based learning** of $K$ in this artifact. If you treat $(s_{1j},\ldots,s_{Nj})$ as **logits**, this matches **one linear layer + argmax**—frozen weights, expert-curated.
+with a **deterministic tie-break** among argmax ties (smallest `rule_id` in the demo). That is **winner-take-all gating**: no softmax, no temperature, **no gradient-based learning** of $K$ in this artifact. In ML vocabulary, $(s_{1j},\ldots,s_{Nj})$ behave like **logits** before a hard max—the formal mirror of the **[neural-network analogy](#kernelization-matrix-multiply-and-gating-neural-network-analogy)** above.
 
 **Problem class (precision).** This is **not** LP, QP, or MILP in the sense of optimizing a continuous or mixed-integer decision $x$ subject to constraints. The mathematics is **linear functionals** of fixed binary $d_j$ plus **discrete maximization** over a **finite** label set—fast to evaluate and easy to audit, at the cost of no built-in uncertainty quantification.
 
@@ -216,7 +234,7 @@ git commit --amend --reset-author --no-edit
 
 ## Tags
 
-Semantic layer, classification override, vendor vs fund taxonomy, fixed income reference data, expert / rules engine, decision automation, linear scoring, SQL (PostgreSQL, T-SQL), data engineering, in-database enrichment, portfolio / interview artifact.
+Expert system, semantic layer, kernelization of categorical data, linear layer / argmax analogy, classification override, vendor vs fund taxonomy, fixed income reference data, rules engine, decision automation, linear scoring, SQL (PostgreSQL, T-SQL), data engineering, in-database enrichment, portfolio / interview artifact.
 
 ## License
 
