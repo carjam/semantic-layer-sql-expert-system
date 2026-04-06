@@ -124,7 +124,7 @@ INSERT INTO demo_observations (
 -- (Explicit mapping; in production this can be table-driven from the semantic layer.)
 -- ---------------------------------------------------------------------------
 INSERT INTO demo_observation_features (observation_id, feature_id)
-SELECT o.observation_id, k.feature_id
+SELECT o.observation_id, v.feature_id
 FROM demo_observations o
 CROSS JOIN LATERAL (
   VALUES

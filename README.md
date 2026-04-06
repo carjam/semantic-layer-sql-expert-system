@@ -64,6 +64,7 @@ with a **deterministic tie-break** among argmax ties (smallest `rule_id` in the 
 
 - **Fixture:** `sql/postgres/demo.sql` or `sql/sqlserver/demo.sql` (three **synthetic** FI rows with **`ald_*` + `fund_*_override`**, three workstreams, all `INSERT`s in-script).
 - **Command:** Run the **Quick start** sections below for PostgreSQL or SQL Server.
+- **Full Postgres run (no local `psql`):** With **Docker** running (e.g. Docker Desktop), from repo root run `.\scripts\run_postgres_demo_docker.ps1` (Windows) or `bash scripts/run_postgres_demo_docker.sh` (macOS/Linux). This starts an **ephemeral** `postgres:16-alpine` container, executes the demo, prints all result sets (including **`ENRICHED_OBSERVATION_ROW`**), then removes the container.
 - **Syntax check (no DB):** `pip install pglast` then `python scripts/verify_postgres_demo.py` — confirms the Postgres script is valid SQL (verified in development: **27** statements parse cleanly).
 - **Main result to check:** final grid **`ENRICHED_OBSERVATION_ROW`** (security + chosen workstream + queue / SLA / book); optionally **`UNPIVOT_LONG`** and **`SUBJECT_SPACE_BY_ISIN`**.
 
@@ -82,6 +83,8 @@ with a **deterministic tie-break** among argmax ties (smallest `rule_id` in the 
 | `sql/sqlserver/demo.sql` | Same pipeline, T-SQL (closer to the original SQL Server post) |
 | `scripts/render_readme_preview.py` | Optional: `README.md` → `README.preview.html` for local viewing |
 | `scripts/verify_postgres_demo.py` | Optional: parse-check `sql/postgres/demo.sql` with **pglast** (no Postgres server) |
+| `scripts/run_postgres_demo_docker.ps1` | Optional: run the Postgres demo end-to-end in Docker (no local `psql`; Windows) |
+| `scripts/run_postgres_demo_docker.sh` | Same as above for bash (macOS/Linux) |
 
 ## Demo data model (Aladdin-style vendor + fund overrides, synthetic)
 
@@ -145,6 +148,22 @@ Experts also maintain **$K$**: non-negative weights on `fi_sovereign`, `fi_corpo
 # From repo root — Aladdin-style FI demo (synthetic ISINs); adjust connection flags
 psql -U postgres -d postgres -f sql/postgres/demo.sql
 ```
+
+### Without local `psql` (Docker)
+
+If you have **Docker** but no PostgreSQL client on the host, run the same script inside an ephemeral server (pulls `postgres:16-alpine` on first use):
+
+```powershell
+# Windows (PowerShell), from repo root
+.\scripts\run_postgres_demo_docker.ps1
+```
+
+```bash
+# macOS / Linux (bash), from repo root
+bash scripts/run_postgres_demo_docker.sh
+```
+
+Use a different image tag if needed: `.\scripts\run_postgres_demo_docker.ps1 -PostgresImage postgres:17-alpine` (PowerShell) or `POSTGRES_IMAGE=postgres:17-alpine bash scripts/run_postgres_demo_docker.sh` (bash).
 
 ## Quick start (SQL Server)
 
