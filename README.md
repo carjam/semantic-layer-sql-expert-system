@@ -87,7 +87,6 @@ with a **deterministic tie-break** among argmax ties (smallest `rule_id` in the 
 | `docs/images/enriched-output.png` | Screenshot of the **Enriched output** screen in the Next.js toy UI (`/enriched`) |
 | `sql/postgres/demo.sql` | End-to-end **Aladdin-style FI** reference demo (PostgreSQL; synthetic ISINs) |
 | `sql/sqlserver/demo.sql` | Same pipeline, T-SQL (closer to the original SQL Server post) |
-| `scripts/render_readme_preview.py` | Optional: `README.md` → `README.preview.html` for local viewing |
 | `scripts/verify_postgres_demo.py` | Optional: parse-check `sql/postgres/demo.sql` with **pglast** (no Postgres server) |
 | `scripts/run_postgres_demo_docker.ps1` | Optional: run the Postgres demo end-to-end in Docker (no local `psql`; Windows) |
 | `scripts/run_postgres_demo_docker.sh` | Same as above for bash (macOS/Linux) |
@@ -181,9 +180,7 @@ Use a different image tag if needed: `.\scripts\run_postgres_demo_docker.ps1 -Po
 sqlcmd -S . -d master -i sql/sqlserver/demo.sql
 ```
 
-### Preview this README in a browser (GitHub-like)
-
-Opening `README.md` directly in a browser usually shows **plain text**. On **GitHub**, the same file is rendered automatically on the repository home page. To preview locally: `pip install markdown`, then `python scripts/render_readme_preview.py`, then open **`README.preview.html`** (generated next to `README.md`; listed in `.gitignore`).
+Opening `README.md` in a browser as a file usually shows **plain text**. Use your editor’s Markdown preview, or view the repo on **GitHub**, where the home-page README is rendered (including math).
 
 ## After you create a GitHub remote
 

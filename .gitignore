@@ -5,5 +5,5 @@ Thumbs.db
 .idea/
 .vscode/
 
-# Local HTML preview (open in browser; regenerate with scripts/render_readme_preview.py)
+# Optional local README HTML export (if you generate one)
 README.preview.html
