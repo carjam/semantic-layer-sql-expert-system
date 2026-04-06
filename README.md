@@ -64,6 +64,7 @@ with a **deterministic tie-break** among argmax ties (smallest `rule_id` in the 
 
 - **Fixture:** `sql/postgres/demo.sql` or `sql/sqlserver/demo.sql` (three **synthetic** FI rows with **`ald_*` + `fund_*_override`**, three workstreams, all `INSERT`s in-script).
 - **Command:** Run the **Quick start** sections below for PostgreSQL or SQL Server.
+- **Syntax check (no DB):** `pip install pglast` then `python scripts/verify_postgres_demo.py` — confirms the Postgres script is valid SQL (verified in development: **27** statements parse cleanly).
 - **Main result to check:** final grid **`ENRICHED_OBSERVATION_ROW`** (security + chosen workstream + queue / SLA / book); optionally **`UNPIVOT_LONG`** and **`SUBJECT_SPACE_BY_ISIN`**.
 
 ### Limitations (negative space)
@@ -80,6 +81,7 @@ with a **deterministic tie-break** among argmax ties (smallest `rule_id` in the 
 | `sql/postgres/demo.sql` | End-to-end **Aladdin-style FI** reference demo (PostgreSQL; synthetic ISINs) |
 | `sql/sqlserver/demo.sql` | Same pipeline, T-SQL (closer to the original SQL Server post) |
 | `scripts/render_readme_preview.py` | Optional: `README.md` → `README.preview.html` for local viewing |
+| `scripts/verify_postgres_demo.py` | Optional: parse-check `sql/postgres/demo.sql` with **pglast** (no Postgres server) |
 
 ## Demo data model (Aladdin-style vendor + fund overrides, synthetic)
 
