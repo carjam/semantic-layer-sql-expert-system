@@ -8,12 +8,16 @@
 
   NN analogy: K is a linear map R^M -> R^N (logit-like scores, no activation);
   argmax over scores is a hard max / winner-take-all gate (plus tie-break).
+
+  Final step: wide score columns (a,b,c) -> UNPIVOT -> argmax -> join raw obs +
+  user-maintained decision descriptors (row-shaped enriched output).
 */
 
 SET NOCOUNT ON;
 
 IF OBJECT_ID('tempdb..#features') IS NOT NULL DROP TABLE #features;
 IF OBJECT_ID('tempdb..#rules') IS NOT NULL DROP TABLE #rules;
+IF OBJECT_ID('tempdb..#rule_enrichment') IS NOT NULL DROP TABLE #rule_enrichment;
 IF OBJECT_ID('tempdb..#rule_weights') IS NOT NULL DROP TABLE #rule_weights;
 IF OBJECT_ID('tempdb..#observations') IS NOT NULL DROP TABLE #observations;
 IF OBJECT_ID('tempdb..#observation_features') IS NOT NULL DROP TABLE #observation_features;
@@ -26,6 +30,13 @@ CREATE TABLE #features (
 CREATE TABLE #rules (
   rule_id         SMALLINT NOT NULL PRIMARY KEY,
   decision_code   VARCHAR(32) NOT NULL
+);
+
+CREATE TABLE #rule_enrichment (
+  rule_id        SMALLINT NOT NULL PRIMARY KEY,
+  routing_queue  VARCHAR(32) NOT NULL,
+  sla_bucket     VARCHAR(8) NOT NULL,
+  cost_center    VARCHAR(16) NOT NULL
 );
 
 CREATE TABLE #rule_weights (
@@ -55,6 +66,11 @@ INSERT INTO #features (feature_id, feature_code) VALUES
 
 INSERT INTO #rules (rule_id, decision_code) VALUES
   (1, 'team_platform'), (2, 'team_regional_na'), (3, 'team_regional_emea');
+
+INSERT INTO #rule_enrichment (rule_id, routing_queue, sla_bucket, cost_center) VALUES
+  (1, 'PLAT-CRITICAL', 'P1', 'CC-900'),
+  (2, 'NA-GENERAL',  'P3', 'CC-100'),
+  (3, 'EMEA-GENERAL','P3', 'CC-200');
 
 INSERT INTO #rule_weights (rule_id, feature_id, weight) VALUES
   (1, 1, 0.50), (1, 5, 0.50),
@@ -177,3 +193,117 @@ SELECT
 FROM ranked
 WHERE rn = 1
 ORDER BY observation_id;
+
+/* --- UNPIVOT long scores (a,b,c = minimal column ids per blog) -> argmax -> enriched row --- */
+;WITH dense_scores AS (
+  SELECT
+    o.observation_id,
+    o.ticket_ref,
+    r.rule_id,
+    ISNULL(SUM(rw.weight), 0) AS score
+  FROM #observations o
+  CROSS JOIN #rules r
+  LEFT JOIN #observation_features ofe ON ofe.observation_id = o.observation_id
+  LEFT JOIN #rule_weights rw
+    ON rw.rule_id = r.rule_id
+   AND rw.feature_id = ofe.feature_id
+  GROUP BY o.observation_id, o.ticket_ref, r.rule_id
+),
+wide AS (
+  SELECT
+    observation_id,
+    ticket_ref,
+    MAX(CASE WHEN rule_id = 1 THEN score END) AS a,
+    MAX(CASE WHEN rule_id = 2 THEN score END) AS b,
+    MAX(CASE WHEN rule_id = 3 THEN score END) AS c
+  FROM dense_scores
+  GROUP BY observation_id, ticket_ref
+),
+unpivoted AS (
+  SELECT
+    u.observation_id,
+    u.ticket_ref,
+    u.decision_slot,
+    CASE u.decision_slot
+      WHEN 'a' THEN CAST(1 AS SMALLINT)
+      WHEN 'b' THEN CAST(2 AS SMALLINT)
+      WHEN 'c' THEN CAST(3 AS SMALLINT)
+    END AS rule_id,
+    u.pre_max_score
+  FROM wide w
+  UNPIVOT (pre_max_score FOR decision_slot IN (a, b, c)) AS u
+)
+SELECT
+  'UNPIVOT_LONG' AS section,
+  observation_id,
+  ticket_ref,
+  decision_slot,
+  rule_id,
+  pre_max_score
+FROM unpivoted
+ORDER BY observation_id, decision_slot;
+
+;WITH dense_scores AS (
+  SELECT
+    o.observation_id,
+    o.ticket_ref,
+    r.rule_id,
+    ISNULL(SUM(rw.weight), 0) AS score
+  FROM #observations o
+  CROSS JOIN #rules r
+  LEFT JOIN #observation_features ofe ON ofe.observation_id = o.observation_id
+  LEFT JOIN #rule_weights rw
+    ON rw.rule_id = r.rule_id
+   AND rw.feature_id = ofe.feature_id
+  GROUP BY o.observation_id, o.ticket_ref, r.rule_id
+),
+wide AS (
+  SELECT
+    observation_id,
+    ticket_ref,
+    MAX(CASE WHEN rule_id = 1 THEN score END) AS a,
+    MAX(CASE WHEN rule_id = 2 THEN score END) AS b,
+    MAX(CASE WHEN rule_id = 3 THEN score END) AS c
+  FROM dense_scores
+  GROUP BY observation_id, ticket_ref
+),
+unpivoted AS (
+  SELECT
+    u.observation_id,
+    u.ticket_ref,
+    CASE u.decision_slot
+      WHEN 'a' THEN CAST(1 AS SMALLINT)
+      WHEN 'b' THEN CAST(2 AS SMALLINT)
+      WHEN 'c' THEN CAST(3 AS SMALLINT)
+    END AS rule_id,
+    u.pre_max_score
+  FROM wide w
+  UNPIVOT (pre_max_score FOR decision_slot IN (a, b, c)) AS u
+),
+ranked AS (
+  SELECT
+    p.*,
+    ROW_NUMBER() OVER (PARTITION BY p.observation_id ORDER BY p.pre_max_score DESC, p.rule_id) AS rn
+  FROM unpivoted p
+)
+SELECT
+  'ENRICHED_OBSERVATION_ROW' AS section,
+  o.observation_id,
+  o.ticket_ref,
+  o.tier,
+  o.region,
+  o.priority,
+  w.a AS score_a,
+  w.b AS score_b,
+  w.c AS score_c,
+  r.decision_code AS winning_team,
+  win.pre_max_score AS winning_score,
+  e.routing_queue,
+  e.sla_bucket,
+  e.cost_center
+FROM #observations o
+INNER JOIN wide w ON w.observation_id = o.observation_id
+INNER JOIN ranked win ON win.observation_id = o.observation_id AND win.rn = 1
+INNER JOIN #rules r ON r.rule_id = win.rule_id
+INNER JOIN #rule_enrichment e ON e.rule_id = win.rule_id
+ORDER BY o.observation_id;

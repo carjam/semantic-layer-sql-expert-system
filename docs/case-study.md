@@ -31,7 +31,7 @@ Business users had built a **spreadsheet farm** to cleanse, enrich, and aggregat
    After kernelization, each observation is a fixed-length vector $d \in \mathbb{R}^M$. Multiplying by $K$ is a **linear map** $\mathbb{R}^M \to \mathbb{R}^N$: one real score per outcome—the same **shape** as **logits** from a single fully connected layer (here there is no separate bias vector and no nonlinearity on those scores). The decision step applies **argmax** / a **hard max** over that $N$-vector: **winner-take-all gating** that picks one class. There is **no softmax** and **no gradient learning**; $K$ is **expert-maintained**. In production, **tie-break and waterfall precedence** sat on top of the same max idea.
 
 7. **Presentation layer**  
-   Results were **unpivoted** back to **row-shaped** output matching how consumers expected to see fact rows.
+   Score vectors were brought to a **wide** layout (one column per outcome, short names like `a,b,c` to limit string overhead), then **`UNPIVOT`** (or the equivalent long shape) so each observation had explicit `(outcome, score)` rows before the max step. The **final deliverable** joined **raw observation attributes** with the **winning decision** and **user-maintained descriptor columns** (queues, SLAs, cost centers—analogous to the “white” semantic columns in the spreadsheet UI) on **one row per observation** for legacy reports and BI tools.
 
 ## Constraints and non-goals
 
@@ -52,7 +52,7 @@ Business users had built a **spreadsheet farm** to cleanse, enrich, and aggregat
 
 ## What the synthetic demos in this repo show
 
-They implement a **tiny** pipeline: **qualitative feed** → **kernelization** into sparse binary features → **variable-space** views of $D$ and $K$ → **subject-space** transpose (features × tickets) → **linear scores** (matrix-style, NN **logit-shaped**) → **argmax gate** (hard **max** over outcomes). All data is fictional.
+They implement a **tiny** pipeline: **qualitative feed** → **kernelization** into sparse binary features → **variable-space** views of $D$ and $K$ → **subject-space** transpose (features × tickets) → **linear scores** (matrix-style, NN **logit-shaped**) → **wide score vector** → **`UNPIVOT`** / long scores → **argmax gate** → **`ENRICHED_OBSERVATION_ROW`** (raw feed + winning team + semantic descriptors). All data is fictional.
 
 ## Lessons (still relevant)
 

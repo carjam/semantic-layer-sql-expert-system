@@ -1,6 +1,6 @@
 # Semantic layer + SQL expert system (portfolio)
 
-This repository is a **public, synthetic** companion to a production system I designed and built at a former employer. It documents the architecture and tradeoffs and includes a **small runnable SQL demo**: **kernelization** of qualitative fields into sparse binary features, **variable space** ($D$ and $K$ as rows in shared $\mathbb{R}^M$), **subject space** (transpose: features × observations), then a **linear score layer** (matrix multiply / logits-shaped) and an **argmax** final step—**hard max gating** over outcomes, analogous to a minimal classifier head without training or softmax.
+This repository is a **public, synthetic** companion to a production system I designed and built at a former employer. It documents the architecture and tradeoffs and includes a **small runnable SQL demo**: **kernelization** of qualitative fields into sparse binary features, **variable space** ($D$ and $K$ as rows in shared $\mathbb{R}^M$), **subject space** (transpose: features × observations), a **linear score layer** (logits-shaped), **wide scores → `UNPIVOT`** (T-SQL) or **`LATERAL VALUES`** (PostgreSQL, same long shape), **argmax** gating, and **`ENRICHED_OBSERVATION_ROW`**: one row per observation marrying the raw feed with the chosen decision and **semantic-layer** descriptors (`routing_queue`, `sla_bucket`, `cost_center`).
 
 **Original write-up (2019 context, published 2020):** [Building a Semantic Layer Using AI](https://dispassionatedeveloper.blogspot.com/2020/04/building-sql-based-expert-system-for.html)
 

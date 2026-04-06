@@ -22,11 +22,16 @@
 --   "logits" from a single linear layer — no bias term here, no activation).
 --   The final step takes argmax over those scores — a hard max / winner-take-all
 --   gate. (Production also layered precedence "waterfall" rules on top.)
+--
+-- UNPIVOT-shaped pipeline: PostgreSQL uses LATERAL VALUES to match SQL Server
+-- UNPIVOT (wide a,b,c -> long rows). Then argmax -> join raw feed + semantic
+-- descriptors on one row per observation (ENRICHED_OBSERVATION_ROW).
 -- =============================================================================
 
 BEGIN;
 
 DROP TABLE IF EXISTS demo_observation_features;
+DROP TABLE IF EXISTS demo_rule_enrichment;
 DROP TABLE IF EXISTS demo_rule_weights;
 DROP TABLE IF EXISTS demo_rules;
 DROP TABLE IF EXISTS demo_features;
@@ -40,6 +45,14 @@ CREATE TABLE demo_features (
 CREATE TABLE demo_rules (
   rule_id         SMALLINT PRIMARY KEY,
   decision_code   TEXT NOT NULL UNIQUE
+);
+
+-- User-maintained semantic attributes per decision (white columns in the blog UI).
+CREATE TABLE demo_rule_enrichment (
+  rule_id         SMALLINT PRIMARY KEY REFERENCES demo_rules (rule_id),
+  routing_queue   TEXT NOT NULL,
+  sla_bucket      TEXT NOT NULL,
+  cost_center     TEXT NOT NULL
 );
 
 -- K: N decisions x M features; row-normalized weights (row sums to 1).
@@ -77,6 +90,11 @@ INSERT INTO demo_rules (rule_id, decision_code) VALUES
   (1, 'team_platform'),
   (2, 'team_regional_na'),
   (3, 'team_regional_emea');
+
+INSERT INTO demo_rule_enrichment (rule_id, routing_queue, sla_bucket, cost_center) VALUES
+  (1, 'PLAT-CRITICAL', 'P1', 'CC-900'),
+  (2, 'NA-GENERAL',  'P3', 'CC-100'),
+  (3, 'EMEA-GENERAL','P3', 'CC-200');
 
 INSERT INTO demo_rule_weights (rule_id, feature_id, weight) VALUES
   (1, 1, 0.50), (1, 5, 0.50),
@@ -214,5 +232,131 @@ SELECT
 FROM ranked
 WHERE rn = 1
 ORDER BY observation_id;
+
+-- ---------------------------------------------------------------------------
+-- Long score shape (same rows as SQL Server UNPIVOT on a,b,c).
+-- ---------------------------------------------------------------------------
+WITH dense_scores AS (
+  SELECT
+    o.observation_id,
+    o.ticket_ref,
+    r.rule_id,
+    COALESCE(SUM(rw.weight), 0) AS score
+  FROM demo_observations o
+  CROSS JOIN demo_rules r
+  LEFT JOIN demo_observation_features ofe ON ofe.observation_id = o.observation_id
+  LEFT JOIN demo_rule_weights rw
+    ON rw.rule_id = r.rule_id
+   AND rw.feature_id = ofe.feature_id
+  GROUP BY o.observation_id, o.ticket_ref, r.rule_id
+),
+wide AS (
+  SELECT
+    observation_id,
+    ticket_ref,
+    MAX(score) FILTER (WHERE rule_id = 1) AS a,
+    MAX(score) FILTER (WHERE rule_id = 2) AS b,
+    MAX(score) FILTER (WHERE rule_id = 3) AS c
+  FROM dense_scores
+  GROUP BY observation_id, ticket_ref
+),
+unpivoted AS (
+  SELECT
+    w.observation_id,
+    w.ticket_ref,
+    x.slot AS decision_slot,
+    x.rule_id,
+    x.pre_max_score
+  FROM wide w
+  CROSS JOIN LATERAL (
+    VALUES
+      ('a', 1, w.a),
+      ('b', 2, w.b),
+      ('c', 3, w.c)
+  ) AS x(slot, rule_id, pre_max_score)
+)
+SELECT
+  'UNPIVOT_LONG' AS section,
+  observation_id,
+  ticket_ref,
+  decision_slot,
+  rule_id,
+  pre_max_score
+FROM unpivoted
+ORDER BY observation_id, decision_slot;
+
+-- ---------------------------------------------------------------------------
+-- Wide score vector -> UNPIVOT equivalent (LATERAL VALUES) -> argmax ->
+-- one output row per observation: raw qualitative feed + winning decision +
+-- semantic-layer descriptors (blog: row-shaped for downstream consumers).
+-- Short slot names a,b,c mirror production use of minimal UNPIVOT column ids.
+-- Dense scores (every obs x rule, zeros included) so argmax matches production.
+-- ---------------------------------------------------------------------------
+WITH dense_scores AS (
+  SELECT
+    o.observation_id,
+    o.ticket_ref,
+    r.rule_id,
+    COALESCE(SUM(rw.weight), 0) AS score
+  FROM demo_observations o
+  CROSS JOIN demo_rules r
+  LEFT JOIN demo_observation_features ofe ON ofe.observation_id = o.observation_id
+  LEFT JOIN demo_rule_weights rw
+    ON rw.rule_id = r.rule_id
+   AND rw.feature_id = ofe.feature_id
+  GROUP BY o.observation_id, o.ticket_ref, r.rule_id
+),
+wide AS (
+  SELECT
+    observation_id,
+    ticket_ref,
+    MAX(score) FILTER (WHERE rule_id = 1) AS a,
+    MAX(score) FILTER (WHERE rule_id = 2) AS b,
+    MAX(score) FILTER (WHERE rule_id = 3) AS c
+  FROM dense_scores
+  GROUP BY observation_id, ticket_ref
+),
+unpivoted AS (
+  SELECT
+    w.observation_id,
+    w.ticket_ref,
+    x.slot,
+    x.rule_id,
+    x.pre_max_score
+  FROM wide w
+  CROSS JOIN LATERAL (
+    VALUES
+      ('a', 1, w.a),
+      ('b', 2, w.b),
+      ('c', 3, w.c)
+  ) AS x(slot, rule_id, pre_max_score)
+),
+ranked AS (
+  SELECT
+    u.*,
+    ROW_NUMBER() OVER (PARTITION BY u.observation_id ORDER BY u.pre_max_score DESC, u.rule_id) AS rn
+  FROM unpivoted u
+)
+SELECT
+  'ENRICHED_OBSERVATION_ROW' AS section,
+  o.observation_id,
+  o.ticket_ref,
+  o.tier,
+  o.region,
+  o.priority,
+  w.a AS score_a,
+  w.b AS score_b,
+  w.c AS score_c,
+  r.decision_code AS winning_team,
+  win.pre_max_score AS winning_score,
+  e.routing_queue,
+  e.sla_bucket,
+  e.cost_center
+FROM demo_observations o
+JOIN wide w ON w.observation_id = o.observation_id
+JOIN ranked win ON win.observation_id = o.observation_id AND win.rn = 1
+JOIN demo_rules r ON r.rule_id = win.rule_id
+JOIN demo_rule_enrichment e ON e.rule_id = win.rule_id
+ORDER BY o.observation_id;
 
 ROLLBACK;
