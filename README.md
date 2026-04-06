@@ -38,11 +38,11 @@ The UI can render many columns for diagnostics, but the core intuition is straig
 
 ## How the scoring engine works
 
-### Kernelization, matrix-constraint scoring, and gating
+### Kernelization, matrix-style scoring, and gating
 
 **Qualitative → numeric.** Vendor and fund-side fields are **categorical** (issuer class, region, rating band, …). **Kernelization** maps each row’s **effective** labels into a **sparse binary vector** $d_j \in \{0,1\}^M$ over a **fixed dictionary** of atomic features (e.g. `fi_corporate`, `region_emea`). That step is the bridge from **qualitative data** to something algebra can consume—without pretending the categories were already real numbers.
 
-**Matrix-style scoring under constraints.** Each observation is mapped to a normalized hierarchy (`hierarchy_top`, `hierarchy_middle`, `hierarchy_bottom`), and each rule row can match exactly or via `*`. Score is computed as a constrained compatibility sum:
+**Matrix-style scoring under constraints.** Each observation is mapped to a normalized hierarchy (`hierarchy_top`, `hierarchy_middle`, `hierarchy_bottom`), kernelized into sparse axis-value features, then scored against kernelized hierarchy rules via sparse dot-product. Compatibility constraints still apply (`*` means "axis not specified"; non-wildcard mismatches are rejected). The resulting score is:
 - top contributes `1` only on exact match
 - middle contributes `1` only if non-wildcard and exact (`*` contributes `0`)
 - bottom contributes `1` only if non-wildcard and exact (`*` contributes `0`)
@@ -51,7 +51,7 @@ Scores for each decision are the best matching hierarchy row for that decision.
 
 **Logic gating.** The discrete choice $\arg\max_i s_{ij}$ (with a fixed tie-break) is a **hard winner-take-all gate**: one outcome “on,” the rest “off.” There is **no softmax**, **no depth**, and **no training loop** in this artifact.
 
-**Resemblance to a tiny net.** You can still view this as “score vector + hard gate.” In this demo, the score vector is produced by a matrix-style constrained compatibility expression over kernelized hierarchy dimensions.
+**Resemblance to a tiny net.** You can still view this as “score vector + hard gate.” In this demo, the score vector is produced by sparse matrix-style dot products over kernelized hierarchy dimensions.
 
 ### Stakeholder view (what each “run” decides)
 
@@ -65,14 +65,18 @@ For every **security** in scope, the engine **chooses exactly one subject option
 - **Business policy (declared, not learned):** The winning outcome is the one with the **highest score**; **ties** resolve by a **fixed ordering** on outcome id (`rule_id` in SQL). Production also used precedence “waterfall” rules—see `docs/case-study.md`.
 - **What is *not* decided here:** Continuous allocation, budgets, or solver-tuned decision vectors; there is **no** numerical optimization over a free $x\in\mathbb{R}^n$ in this pattern.
 
-### Technical primer: matrix-constraint scoring and argmax gate
+### Technical primer: matrix-style scoring and argmax gate
 
 **Notation.** $N$ = number of outcomes (workstreams). For observation $j$, hierarchy matching yields a score vector $(s_{1j}, \ldots, s_{Nj})$ where each $s_{ij}$ is the maximum compatibility score among hierarchy rows mapped to outcome $i$.
 
-**Hierarchy score (constraint expression).** For each matching hierarchy rule:
+**Hierarchy score (sparse kernel dot-product under constraints).** For each hierarchy rule $r$ and observation $j$, build sparse vectors over hierarchy axes and compute:
 
 $$
-\text{score} = \frac{\mathbf{1}[top = top_j] + \mathbf{1}[middle \neq * \land middle = middle_j] + \mathbf{1}[bottom \neq * \land bottom = bottom_j]}{3}
+\text{score}_{rj} =
+\begin{cases}
+\dfrac{d_j^\top k_r}{3}, & \text{if all non-wildcard axes in } r \text{ match } j\\
+0, & \text{otherwise}
+\end{cases}
 $$
 
 and the outcome score is the maximum rule score among rows for that outcome.
@@ -126,7 +130,7 @@ with a **deterministic tie-break** among argmax ties (smallest `rule_id` in the 
 | **Fund semantic layer (`fund_*_override`)** | Nullable per column; when **non-blank**, replaces the corresponding `ald_*` for **scoring only** (vendor columns remain in the enriched output for lineage). |
 | **Effective (implicit)** | `COALESCE(NULLIF(TRIM(override), ''), ald_value)` per dimension—this is what **kernelization** sees. |
 | **Kernelized features** | Sparse 0/1 atoms over **effective** labels: `fi_sovereign`, `fi_corporate`, `region_emea`, `region_na`, `rating_ig`. |
-| **Hierarchy enrichment rules** | User-maintained match rows with `*` wildcard support across `hierarchy_top`, `hierarchy_middle`, `hierarchy_bottom`; matrix-style compatibility score is computed per rule and max-selected per outcome. |
+| **Hierarchy enrichment rules** | User-maintained match rows with `*` wildcard support across `hierarchy_top`, `hierarchy_middle`, `hierarchy_bottom`; sparse kernel dot-product score is computed per rule and max-selected per outcome. |
 | **Decision outcomes** | Workstreams: sovereign rates (NA), corporate credit (NA), corporate credit (EMEA). |
 | **Deliverable** | **`ENRICHED_OBSERVATION_ROW`**: `ald_*`, `fund_*_override`, **`effective_*`**, matrix-constraint scores, `winning_workstream`, wildcard-resolved semantic descriptors. |
 
@@ -165,7 +169,7 @@ Each row is a candidate **downstream workstream**. `decision_code` is the key se
 | `ald_corp_credit_na` | Corporate credit — North America |
 | `ald_corp_credit_emea` | Corporate credit — EMEA |
 
-Experts maintain hierarchy rules with wildcard support. The engine computes matrix-style compatibility scores from those rules, reshapes wide scores (`a`/`b`/`c`) to long, and applies argmax (tie-break on `rule_id`).
+Experts maintain hierarchy rules with wildcard support. The engine kernelizes hierarchy rows and observations, computes sparse matrix-style scores, reshapes wide scores (`a`/`b`/`c`) to long, and applies argmax (tie-break on `rule_id`).
 
 ### Output: enriched rows (vendor + overrides + effective + winner)
 

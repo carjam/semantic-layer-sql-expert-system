@@ -39,7 +39,7 @@ type SqlEnrichedRow = {
 
 type SqlScoreRow = { observation_id: number; rule_id: number; score: number };
 
-/** Loads enriched rows via SQL using matrix-constraint scoring and argmax gating. */
+/** Loads enriched rows via SQL using kernelized sparse dot-product scoring and argmax gating. */
 export async function loadEnrichedRows() {
   noStore();
   const [rows, scoreRows, rules] = await Promise.all([

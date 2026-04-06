@@ -1,5 +1,5 @@
 -- =============================================================================
--- Synthetic demo: kernelization + matrix-constrained rule scoring
+-- Synthetic demo: kernelization + matrix-style rule scoring
 -- Domain: fixed income *securities* with **ald_*** vendor-style reference fields
 -- and **fund_***_override columns (fund semantic layer). Effective = COALESCE
 -- trimmed non-empty override, else ald. All ISINs fabricated; not vendor data.
@@ -19,7 +19,7 @@
 --   gate. (Production also layered precedence "waterfall" rules on top.)
 --
 -- Canonical routines created by this script:
---   demo_get_dense_scores()  -> matrix-constrained score rows
+--   demo_get_dense_scores()  -> matrix-style score rows (sparse dot-product)
 --   demo_get_enriched_rows() -> final one-row-per-observation enriched output
 --
 -- The script runs in a single transaction (BEGIN … COMMIT) so it is atomic; on
@@ -101,6 +101,7 @@ INSERT INTO demo_hierarchy_enrichment_rules (
   (2, 'Debt', '*',     '*',         'general_debt_coverage', 'CORP-CREDIT-NA', 'T+1_STD', 'BOOK_NA_CREDIT');
 
 -- Canonical scoring routine used by both demo output and web app API.
+-- Implementation shape: sparse kernel features + dot-product style aggregation.
 CREATE OR REPLACE FUNCTION demo_get_dense_scores()
 RETURNS TABLE (
   observation_id BIGINT,
@@ -123,26 +124,84 @@ AS $$
       END AS hierarchy_middle,
       COALESCE(NULLIF(BTRIM(o.fund_issuer_class_override), ''), o.ald_issuer_class) AS hierarchy_bottom
     FROM demo_observations o
+  ),
+  obs_kernel AS (
+    SELECT observation_id, 'top'::TEXT AS feature_axis, hierarchy_top AS feature_value FROM obs_hierarchy
+    UNION ALL
+    SELECT observation_id, 'middle'::TEXT AS feature_axis, hierarchy_middle AS feature_value FROM obs_hierarchy
+    UNION ALL
+    SELECT observation_id, 'bottom'::TEXT AS feature_axis, hierarchy_bottom AS feature_value FROM obs_hierarchy
+  ),
+  rule_kernel AS (
+    SELECT hierarchy_rule_id, rule_id, 'top'::TEXT AS feature_axis, hierarchy_top AS feature_value
+    FROM demo_hierarchy_enrichment_rules
+    WHERE hierarchy_top <> '*'
+    UNION ALL
+    SELECT hierarchy_rule_id, rule_id, 'middle'::TEXT AS feature_axis, hierarchy_middle AS feature_value
+    FROM demo_hierarchy_enrichment_rules
+    WHERE hierarchy_middle <> '*'
+    UNION ALL
+    SELECT hierarchy_rule_id, rule_id, 'bottom'::TEXT AS feature_axis, hierarchy_bottom AS feature_value
+    FROM demo_hierarchy_enrichment_rules
+    WHERE hierarchy_bottom <> '*'
+  ),
+  obs_rule_space AS (
+    SELECT
+      oh.observation_id,
+      oh.isin,
+      r.rule_id,
+      r.decision_code,
+      hr.hierarchy_rule_id
+    FROM obs_hierarchy oh
+    CROSS JOIN demo_rules r
+    LEFT JOIN demo_hierarchy_enrichment_rules hr
+      ON hr.rule_id = r.rule_id
+  ),
+  hierarchy_rule_scores AS (
+    SELECT
+      ors.observation_id,
+      ors.isin,
+      ors.rule_id,
+      ors.decision_code,
+      ors.hierarchy_rule_id,
+      CASE
+        WHEN COALESCE(SUM(
+          CASE
+            WHEN rk.feature_axis IS NOT NULL
+             AND ok.feature_value IS DISTINCT FROM rk.feature_value THEN 1
+            ELSE 0
+          END
+        ), 0) > 0 THEN 0
+        ELSE COALESCE(SUM(
+          CASE
+            WHEN rk.feature_axis IS NOT NULL
+             AND ok.feature_value = rk.feature_value THEN 1
+            ELSE 0
+          END
+        ) / 3.0, 0)
+      END AS score
+    FROM obs_rule_space ors
+    LEFT JOIN rule_kernel rk
+      ON rk.hierarchy_rule_id = ors.hierarchy_rule_id
+    LEFT JOIN obs_kernel ok
+      ON ok.observation_id = ors.observation_id
+     AND ok.feature_axis = rk.feature_axis
+    GROUP BY
+      ors.observation_id,
+      ors.isin,
+      ors.rule_id,
+      ors.decision_code,
+      ors.hierarchy_rule_id
   )
   SELECT
-    oh.observation_id,
-    oh.isin,
-    r.rule_id,
-    r.decision_code,
-    COALESCE(MAX((
-      (CASE WHEN hr.hierarchy_top = oh.hierarchy_top THEN 1 ELSE 0 END) +
-      (CASE WHEN hr.hierarchy_middle = '*' THEN 0 WHEN hr.hierarchy_middle = oh.hierarchy_middle THEN 1 ELSE 0 END) +
-      (CASE WHEN hr.hierarchy_bottom = '*' THEN 0 WHEN hr.hierarchy_bottom = oh.hierarchy_bottom THEN 1 ELSE 0 END)
-    ) / 3.0), 0) AS score
-  FROM obs_hierarchy oh
-  CROSS JOIN demo_rules r
-  LEFT JOIN demo_hierarchy_enrichment_rules hr
-    ON hr.rule_id = r.rule_id
-   AND (hr.hierarchy_top = '*' OR hr.hierarchy_top = oh.hierarchy_top)
-   AND (hr.hierarchy_middle = '*' OR hr.hierarchy_middle = oh.hierarchy_middle)
-   AND (hr.hierarchy_bottom = '*' OR hr.hierarchy_bottom = oh.hierarchy_bottom)
-  GROUP BY oh.observation_id, oh.isin, r.rule_id, r.decision_code
-  ORDER BY oh.observation_id, r.rule_id;
+    hrs.observation_id,
+    hrs.isin,
+    hrs.rule_id,
+    hrs.decision_code,
+    MAX(hrs.score) AS score
+  FROM hierarchy_rule_scores hrs
+  GROUP BY hrs.observation_id, hrs.isin, hrs.rule_id, hrs.decision_code
+  ORDER BY hrs.observation_id, hrs.rule_id;
 $$;
 
 -- Canonical enriched-row routine (table-valued function; planner can cache plan).
@@ -319,7 +378,7 @@ AS $$
   ORDER BY o.observation_id;
 $$;
 
--- Runtime hierarchy rules (no static K table): matrix-constraint scoring drives real-time score.
+-- Runtime hierarchy rules (no static K table): sparse-kernel matrix-style scoring drives real-time score.
 SELECT
   'HIERARCHY_RULE_SPACE' AS section,
   hr.hierarchy_rule_id,
