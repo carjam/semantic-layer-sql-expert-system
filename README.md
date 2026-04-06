@@ -1,6 +1,6 @@
 # Semantic layer + SQL expert system (portfolio)
 
-This repository is a **public, synthetic** companion to a production system I designed and built at a former employer. It documents architecture and tradeoffs and ships a **small runnable SQL demo** whose pipeline—**kernelization**, **variable / subject space** views, **linear scores**, **`UNPIVOT` / `LATERAL VALUES`**, **argmax gating**, **`ENRICHED_OBSERVATION_ROW`**—is spelled out in **How the scoring engine works** (linear algebra, logic gate, limitations, reproduction).
+This repository is a **public, synthetic** companion to a production system I designed and built at a former employer. It documents architecture and tradeoffs and ships a **small runnable SQL demo** whose observations are **fixed income securities** cast in an **Aladdin-style** reference-data shape (ISIN, issuer class, region, rating band)—**not** real BlackRock or vendor data. The pipeline—**kernelization**, **variable / subject space** views, **linear scores**, **`UNPIVOT` / `LATERAL VALUES`**, **argmax gating**, **`ENRICHED_OBSERVATION_ROW`**—is spelled out in **How the scoring engine works** (linear algebra, logic gate, limitations, reproduction).
 
 **Original write-up (2019 context, published 2020):** [Building a Semantic Layer Using AI](https://dispassionatedeveloper.blogspot.com/2020/04/building-sql-based-expert-system-for.html)
 
@@ -54,7 +54,7 @@ with a **deterministic tie-break** among argmax ties (smallest `rule_id` in the 
 
 ### Limitations (negative space)
 
-- Scores $s_{ij}$ are **not** claimed to be calibrated probabilities; interpreting them across tickets requires an explicit business definition.
+- Scores $s_{ij}$ are **not** claimed to be calibrated probabilities; interpreting them across securities or portfolios requires an explicit business definition.
 - **Kernelization** and $K$ must stay in sync; errors are **governance / data-quality** failures, not detected by the score formula.
 - This repo does **not** reproduce production **scale** mechanics (indexed TVFs, staging on read replicas, etc.); those are described in `docs/case-study.md`.
 
@@ -68,41 +68,43 @@ with a **deterministic tie-break** among argmax ties (smallest `rule_id` in the 
 
 ## Worked example (what the demo is doing)
 
-The script uses a **fictional support-routing** domain. You can read the **inputs** in the `INSERT` statements, run the file, and match the last result set **`ENRICHED_OBSERVATION_ROW`** to the tables below.
+The script uses **three synthetic fixed income instruments** with qualitative fields similar to a **security-master / Aladdin-style FI reference** slice (ISIN-like id, issuer class, trading region, broad rating bucket). **ISINs are fabricated** (`…ALDIN…` pattern); they are **not** live instruments and **not** from any vendor feed. *Aladdin® is a registered trademark of BlackRock, Inc.; this repo is independent and for illustration only.*
+
+Read the **inputs** in the `INSERT` statements, run the file, and match the last result set **`ENRICHED_OBSERVATION_ROW`** to the tables below.
 
 ### Inputs: observations (raw qualitative feed)
 
-These rows are the **observations**—what might arrive from an upstream feed **before** any routing metadata exists:
+These rows are the **observations**—what might arrive from an upstream reference or analytics feed **before** workstream-specific enrichment is applied:
 
-| ticket_ref | tier       | region | priority |
-|------------|------------|--------|----------|
-| TK-1001    | enterprise | na     | high     |
-| TK-1002    | standard   | emea   | normal   |
-| TK-1003    | standard   | na     | normal   |
+| isin            | issuer_class | region | rating_band |
+|-----------------|----------------|--------|-------------|
+| US00ALDINFI01   | sovereign      | na     | ig          |
+| DE00ALDINFI02   | corporate      | emea   | core        |
+| US00ALDINFI03   | corporate      | na     | core        |
 
 ### Inputs: subject options (decisions + semantic descriptors)
 
-Each **subject option** is a possible routing outcome (`decision_code`) plus **user-maintained** descriptor columns (queues, SLA, cost center), analogous to the “white” semantic columns in the original UI:
+Each **subject option** is a possible **analytics / operations workstream** (`decision_code`) plus **user-maintained** descriptor columns (queue, SLA tier, book attribution), analogous to the “white” semantic columns in the original UI:
 
-| decision_code        | routing_queue   | sla_bucket | cost_center |
-|----------------------|-----------------|------------|-------------|
-| team_platform        | PLAT-CRITICAL   | P1         | CC-900      |
-| team_regional_na     | NA-GENERAL      | P3         | CC-100      |
-| team_regional_emea   | EMEA-GENERAL    | P3         | CC-200      |
+| decision_code          | routing_queue      | sla_bucket  | cost_center      |
+|------------------------|--------------------|-------------|------------------|
+| ald_sov_rates_na       | SOV-RATES-NA       | T+0_CLOSE   | BOOK_NA_GOVT     |
+| ald_corp_credit_na     | CORP-CREDIT-NA     | T+1_STD     | BOOK_NA_CREDIT   |
+| ald_corp_credit_emea   | CORP-CREDIT-EMEA   | T+1_STD     | BOOK_EMEA_CREDIT |
 
-Experts also define **weights** over shared **atomic features** (e.g. `tier_enterprise`, `region_na`) so each team gets a numeric score against every ticket. The demo **kernelizes** the text columns into those binary features before scoring.
+Experts also define **weights** over shared **atomic features** (`fi_sovereign`, `fi_corporate`, `region_na`, `region_emea`, `rating_ig`) so each workstream gets a numeric score against every security. The demo **kernelizes** the text columns into those binary features before scoring.
 
 ### Output: observations enriched with the best subject’s descriptors
 
-The pipeline scores **every observation against every rule** (zeros when there is no feature overlap), takes **argmax**, then joins the **winning** row’s descriptors. Result set **`ENRICHED_OBSERVATION_ROW`** is **one row per ticket** with raw fields, wide scores for rules 1–3 (`score_a`, `score_b`, `score_c`), the winner, and the chosen descriptors:
+The pipeline scores **every observation against every rule** (zeros when there is no feature overlap), takes **argmax**, then joins the **winning** row’s descriptors. Result set **`ENRICHED_OBSERVATION_ROW`** is **one row per security** with raw fields, wide scores for rules 1–3 (`score_a`, `score_b`, `score_c`), the winner (`winning_workstream`), and the chosen descriptors:
 
-| ticket_ref | tier       | region | priority | score_a | score_b | score_c | winning_team           | winning_score | routing_queue   | sla_bucket | cost_center |
-|------------|------------|--------|----------|---------|---------|---------|------------------------|---------------|-----------------|------------|-------------|
-| TK-1001    | enterprise | na     | high     | 1.00    | 0.60    | 0.00    | team_platform          | 1.00          | PLAT-CRITICAL   | P1         | CC-900      |
-| TK-1002    | standard   | emea   | normal   | 0.00    | 0.40    | 1.00    | team_regional_emea     | 1.00          | EMEA-GENERAL    | P3         | CC-200      |
-| TK-1003    | standard   | na     | normal   | 0.00    | 1.00    | 0.40    | team_regional_na       | 1.00          | NA-GENERAL      | P3         | CC-100      |
+| isin            | issuer_class | region | rating_band | score_a | score_b | score_c | winning_workstream     | winning_score | routing_queue      | sla_bucket  | cost_center       |
+|-----------------|--------------|--------|-------------|---------|---------|---------|------------------------|---------------|--------------------|-------------|-------------------|
+| US00ALDINFI01   | sovereign    | na     | ig          | 1.00    | 0.60    | 0.00    | ald_sov_rates_na       | 1.00          | SOV-RATES-NA       | T+0_CLOSE   | BOOK_NA_GOVT      |
+| DE00ALDINFI02   | corporate    | emea   | core        | 0.00    | 0.40    | 1.00    | ald_corp_credit_emea   | 1.00          | CORP-CREDIT-EMEA   | T+1_STD     | BOOK_EMEA_CREDIT  |
+| US00ALDINFI03   | corporate    | na     | core        | 0.00    | 1.00    | 0.40    | ald_corp_credit_na     | 1.00          | CORP-CREDIT-NA     | T+1_STD     | BOOK_NA_CREDIT    |
 
-In short: **TK-1001** (enterprise, NA, high) goes to **platform** and picks up **PLAT-CRITICAL / P1 / CC-900**; **TK-1002** (standard, EMEA) goes to **EMEA-GENERAL**; **TK-1003** (standard, NA) goes to **NA-GENERAL**. Earlier result sets in the same script (`VARIABLE_SPACE_*`, `UNPIVOT_LONG`, etc.) show the geometry and the UNPIVOT step; this table is the **consumer-shaped** outcome.
+In short: the **US sovereign IG NA** name routes to **sovereign rates (NA)**; the **EMEA corporate** name to **corporate credit (EMEA)**; the **US corporate** name to **corporate credit (NA)**. Earlier result sets in the same script (`VARIABLE_SPACE_*`, `SUBJECT_SPACE_BY_ISIN`, `UNPIVOT_LONG`, etc.) show the geometry and the UNPIVOT step; this table is the **consumer-shaped** outcome.
 
 ## Quick start (PostgreSQL)
 
@@ -145,7 +147,7 @@ git commit --amend --reset-author --no-edit
 
 ## Tags
 
-Semantic layer, expert / rules engine, decision automation, linear scoring, SQL (PostgreSQL, T-SQL), data engineering, in-database enrichment, portfolio / interview artifact.
+Semantic layer, expert / rules engine, fixed income reference data, decision automation, linear scoring, SQL (PostgreSQL, T-SQL), data engineering, in-database enrichment, portfolio / interview artifact.
 
 ## License
 

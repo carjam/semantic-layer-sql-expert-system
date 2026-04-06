@@ -1,6 +1,8 @@
 -- =============================================================================
 -- Synthetic demo: kernelization + variable space / subject space + rule scoring
--- Domain: fictional support tickets. PostgreSQL.
+-- Domain: fixed income *securities* as they might appear in a security-master /
+-- analytics feed (e.g. Aladdin-style FI attributes). All ISINs and attributes
+-- are **fabricated** for illustration; not real positions or vendor data.
 --
 -- Variable space (standard multivariate view):
 --   Each *observation* is a vector in R^M: one coordinate per atomic feature
@@ -8,12 +10,12 @@
 --
 -- Subject space (dual view):
 --   Each *feature* is a vector over the O observations (same inner products;
---   geometrically the transpose). Useful to see which observations activate
+--   geometrically the transpose). Useful to see which securities activate
 --   which dimensions together.
 --
 -- Kernelization:
---   Upstream delivers qualitative labels (tier, region, priority). We map
---   them into a fixed sparse 0/1 representation in R^M so linear weights
+--   Upstream delivers qualitative labels (issuer class, region, rating band).
+--   We map them into a fixed sparse 0/1 representation in R^M so linear weights
 --   (rows of K) apply without string matching on the hot path.
 --
 -- NN analogy (interpretation, not training):
@@ -63,13 +65,13 @@ CREATE TABLE demo_rule_weights (
   PRIMARY KEY (rule_id, feature_id)
 );
 
--- Raw observations: qualitative fields as they might arrive from a feed.
+-- Raw observations: qualitative FI fields as from a security / reference feed.
 CREATE TABLE demo_observations (
   observation_id BIGSERIAL PRIMARY KEY,
-  ticket_ref     TEXT NOT NULL,
-  tier             TEXT NOT NULL,
+  isin             TEXT NOT NULL,
+  issuer_class     TEXT NOT NULL,
   region           TEXT NOT NULL,
-  priority         TEXT NOT NULL
+  rating_band      TEXT NOT NULL
 );
 
 -- D (sparse): kernelized 0/1 coordinates in variable space.
@@ -80,32 +82,32 @@ CREATE TABLE demo_observation_features (
 );
 
 INSERT INTO demo_features (feature_id, feature_code) VALUES
-  (1, 'tier_enterprise'),
-  (2, 'tier_standard'),
+  (1, 'fi_sovereign'),
+  (2, 'fi_corporate'),
   (3, 'region_emea'),
   (4, 'region_na'),
-  (5, 'priority_high');
+  (5, 'rating_ig');
 
 INSERT INTO demo_rules (rule_id, decision_code) VALUES
-  (1, 'team_platform'),
-  (2, 'team_regional_na'),
-  (3, 'team_regional_emea');
+  (1, 'ald_sov_rates_na'),
+  (2, 'ald_corp_credit_na'),
+  (3, 'ald_corp_credit_emea');
 
 INSERT INTO demo_rule_enrichment (rule_id, routing_queue, sla_bucket, cost_center) VALUES
-  (1, 'PLAT-CRITICAL', 'P1', 'CC-900'),
-  (2, 'NA-GENERAL',  'P3', 'CC-100'),
-  (3, 'EMEA-GENERAL','P3', 'CC-200');
+  (1, 'SOV-RATES-NA',   'T+0_CLOSE', 'BOOK_NA_GOVT'),
+  (2, 'CORP-CREDIT-NA', 'T+1_STD',   'BOOK_NA_CREDIT'),
+  (3, 'CORP-CREDIT-EMEA', 'T+1_STD', 'BOOK_EMEA_CREDIT');
 
 INSERT INTO demo_rule_weights (rule_id, feature_id, weight) VALUES
   (1, 1, 0.50), (1, 5, 0.50),
   (2, 2, 0.40), (2, 4, 0.60),
   (3, 2, 0.40), (3, 3, 0.60);
 
--- Qualitative feed (would be bulk-loaded in production).
-INSERT INTO demo_observations (ticket_ref, tier, region, priority) VALUES
-  ('TK-1001', 'enterprise', 'na',   'high'),
-  ('TK-1002', 'standard',   'emea', 'normal'),
-  ('TK-1003', 'standard',   'na',   'normal');
+-- Synthetic FI securities (ISIN pattern only; not real instruments).
+INSERT INTO demo_observations (isin, issuer_class, region, rating_band) VALUES
+  ('US00ALDINFI01', 'sovereign', 'na',   'ig'),
+  ('DE00ALDINFI02', 'corporate', 'emea', 'core'),
+  ('US00ALDINFI03', 'corporate', 'na',   'core');
 
 -- ---------------------------------------------------------------------------
 -- Kernelization: qualitative -> fixed binary features in R^M
@@ -116,11 +118,11 @@ SELECT o.observation_id, k.feature_id
 FROM demo_observations o
 CROSS JOIN LATERAL (
   VALUES
-    (CASE WHEN o.tier = 'enterprise' THEN 1 END),
-    (CASE WHEN o.tier = 'standard'  THEN 2 END),
+    (CASE WHEN o.issuer_class = 'sovereign' THEN 1 END),
+    (CASE WHEN o.issuer_class = 'corporate' THEN 2 END),
     (CASE WHEN o.region = 'emea' THEN 3 END),
     (CASE WHEN o.region = 'na'   THEN 4 END),
-    (CASE WHEN o.priority = 'high' THEN 5 END)
+    (CASE WHEN o.rating_band = 'ig' THEN 5 END)
 ) AS v(feature_id)
 WHERE v.feature_id IS NOT NULL;
 
@@ -131,15 +133,15 @@ WHERE v.feature_id IS NOT NULL;
 SELECT
   'VARIABLE_SPACE_D_MATRIX' AS section,
   o.observation_id,
-  o.ticket_ref,
-  COALESCE(BOOL_OR(ofe.feature_id = 1), FALSE)::INT AS f_tier_enterprise,
-  COALESCE(BOOL_OR(ofe.feature_id = 2), FALSE)::INT AS f_tier_standard,
+  o.isin,
+  COALESCE(BOOL_OR(ofe.feature_id = 1), FALSE)::INT AS f_fi_sovereign,
+  COALESCE(BOOL_OR(ofe.feature_id = 2), FALSE)::INT AS f_fi_corporate,
   COALESCE(BOOL_OR(ofe.feature_id = 3), FALSE)::INT AS f_region_emea,
   COALESCE(BOOL_OR(ofe.feature_id = 4), FALSE)::INT AS f_region_na,
-  COALESCE(BOOL_OR(ofe.feature_id = 5), FALSE)::INT AS f_priority_high
+  COALESCE(BOOL_OR(ofe.feature_id = 5), FALSE)::INT AS f_rating_ig
 FROM demo_observations o
 LEFT JOIN demo_observation_features ofe ON ofe.observation_id = o.observation_id
-GROUP BY o.observation_id, o.ticket_ref
+GROUP BY o.observation_id, o.isin
 ORDER BY o.observation_id;
 
 -- K: same M axes; cell = weight k_im (0 if absent).
@@ -147,11 +149,11 @@ SELECT
   'VARIABLE_SPACE_K_ROWS' AS section,
   r.rule_id,
   r.decision_code,
-  COALESCE(MAX(CASE WHEN rw.feature_id = 1 THEN rw.weight END), 0) AS w_tier_enterprise,
-  COALESCE(MAX(CASE WHEN rw.feature_id = 2 THEN rw.weight END), 0) AS w_tier_standard,
+  COALESCE(MAX(CASE WHEN rw.feature_id = 1 THEN rw.weight END), 0) AS w_fi_sovereign,
+  COALESCE(MAX(CASE WHEN rw.feature_id = 2 THEN rw.weight END), 0) AS w_fi_corporate,
   COALESCE(MAX(CASE WHEN rw.feature_id = 3 THEN rw.weight END), 0) AS w_region_emea,
   COALESCE(MAX(CASE WHEN rw.feature_id = 4 THEN rw.weight END), 0) AS w_region_na,
-  COALESCE(MAX(CASE WHEN rw.feature_id = 5 THEN rw.weight END), 0) AS w_priority_high,
+  COALESCE(MAX(CASE WHEN rw.feature_id = 5 THEN rw.weight END), 0) AS w_rating_ig,
   SUM(rw.weight) AS row_weight_sum
 FROM demo_rules r
 JOIN demo_rule_weights rw ON rw.rule_id = r.rule_id
@@ -160,14 +162,14 @@ ORDER BY r.rule_id;
 
 -- ---------------------------------------------------------------------------
 -- Subject space: each row is one feature's vector over observations (transpose
--- of D). Coordinates are activation (0/1) per ticket after kernelization.
+-- of D). Coordinates are activation (0/1) per security after kernelization.
 -- ---------------------------------------------------------------------------
 SELECT
-  'SUBJECT_SPACE_BY_TICKET' AS section,
+  'SUBJECT_SPACE_BY_ISIN' AS section,
   fe.feature_code,
-  COALESCE(MAX(CASE WHEN o.ticket_ref = 'TK-1001' THEN 1 END), 0) AS tk1001,
-  COALESCE(MAX(CASE WHEN o.ticket_ref = 'TK-1002' THEN 1 END), 0) AS tk1002,
-  COALESCE(MAX(CASE WHEN o.ticket_ref = 'TK-1003' THEN 1 END), 0) AS tk1003
+  COALESCE(MAX(CASE WHEN o.isin = 'US00ALDINFI01' THEN 1 END), 0) AS sec_us_sov_na,
+  COALESCE(MAX(CASE WHEN o.isin = 'DE00ALDINFI02' THEN 1 END), 0) AS sec_de_corp_emea,
+  COALESCE(MAX(CASE WHEN o.isin = 'US00ALDINFI03' THEN 1 END), 0) AS sec_us_corp_na
 FROM demo_features fe
 LEFT JOIN demo_observation_features ofe ON ofe.feature_id = fe.feature_id
 LEFT JOIN demo_observations o ON o.observation_id = ofe.observation_id
@@ -181,7 +183,7 @@ ORDER BY fe.feature_id;
 WITH scores AS (
   SELECT
     o.observation_id,
-    o.ticket_ref,
+    o.isin,
     r.rule_id,
     r.decision_code,
     SUM(rw.weight) AS score
@@ -189,12 +191,12 @@ WITH scores AS (
   JOIN demo_observation_features ofe ON ofe.observation_id = o.observation_id
   JOIN demo_rule_weights rw ON rw.feature_id = ofe.feature_id
   JOIN demo_rules r ON r.rule_id = rw.rule_id
-  GROUP BY o.observation_id, o.ticket_ref, r.rule_id, r.decision_code
+  GROUP BY o.observation_id, o.isin, r.rule_id, r.decision_code
 )
 SELECT
   'LINEAR_LAYER_SCORES' AS section,
   observation_id,
-  ticket_ref,
+  isin,
   rule_id,
   decision_code,
   score AS pre_max_score
@@ -207,7 +209,7 @@ ORDER BY observation_id, rule_id;
 WITH scores AS (
   SELECT
     o.observation_id,
-    o.ticket_ref,
+    o.isin,
     r.rule_id,
     r.decision_code,
     SUM(rw.weight) AS score
@@ -215,7 +217,7 @@ WITH scores AS (
   JOIN demo_observation_features ofe ON ofe.observation_id = o.observation_id
   JOIN demo_rule_weights rw ON rw.feature_id = ofe.feature_id
   JOIN demo_rules r ON r.rule_id = rw.rule_id
-  GROUP BY o.observation_id, o.ticket_ref, r.rule_id, r.decision_code
+  GROUP BY o.observation_id, o.isin, r.rule_id, r.decision_code
 ),
 ranked AS (
   SELECT
@@ -226,8 +228,8 @@ ranked AS (
 SELECT
   'ARGMAX_GATE' AS section,
   observation_id,
-  ticket_ref,
-  decision_code AS winning_team,
+  isin,
+  decision_code AS winning_workstream,
   score AS winning_score
 FROM ranked
 WHERE rn = 1
@@ -239,7 +241,7 @@ ORDER BY observation_id;
 WITH dense_scores AS (
   SELECT
     o.observation_id,
-    o.ticket_ref,
+    o.isin,
     r.rule_id,
     COALESCE(SUM(rw.weight), 0) AS score
   FROM demo_observations o
@@ -248,22 +250,22 @@ WITH dense_scores AS (
   LEFT JOIN demo_rule_weights rw
     ON rw.rule_id = r.rule_id
    AND rw.feature_id = ofe.feature_id
-  GROUP BY o.observation_id, o.ticket_ref, r.rule_id
+  GROUP BY o.observation_id, o.isin, r.rule_id
 ),
 wide AS (
   SELECT
     observation_id,
-    ticket_ref,
+    isin,
     MAX(score) FILTER (WHERE rule_id = 1) AS a,
     MAX(score) FILTER (WHERE rule_id = 2) AS b,
     MAX(score) FILTER (WHERE rule_id = 3) AS c
   FROM dense_scores
-  GROUP BY observation_id, ticket_ref
+  GROUP BY observation_id, isin
 ),
 unpivoted AS (
   SELECT
     w.observation_id,
-    w.ticket_ref,
+    w.isin,
     x.slot AS decision_slot,
     x.rule_id,
     x.pre_max_score
@@ -278,7 +280,7 @@ unpivoted AS (
 SELECT
   'UNPIVOT_LONG' AS section,
   observation_id,
-  ticket_ref,
+  isin,
   decision_slot,
   rule_id,
   pre_max_score
@@ -295,7 +297,7 @@ ORDER BY observation_id, decision_slot;
 WITH dense_scores AS (
   SELECT
     o.observation_id,
-    o.ticket_ref,
+    o.isin,
     r.rule_id,
     COALESCE(SUM(rw.weight), 0) AS score
   FROM demo_observations o
@@ -304,22 +306,22 @@ WITH dense_scores AS (
   LEFT JOIN demo_rule_weights rw
     ON rw.rule_id = r.rule_id
    AND rw.feature_id = ofe.feature_id
-  GROUP BY o.observation_id, o.ticket_ref, r.rule_id
+  GROUP BY o.observation_id, o.isin, r.rule_id
 ),
 wide AS (
   SELECT
     observation_id,
-    ticket_ref,
+    isin,
     MAX(score) FILTER (WHERE rule_id = 1) AS a,
     MAX(score) FILTER (WHERE rule_id = 2) AS b,
     MAX(score) FILTER (WHERE rule_id = 3) AS c
   FROM dense_scores
-  GROUP BY observation_id, ticket_ref
+  GROUP BY observation_id, isin
 ),
 unpivoted AS (
   SELECT
     w.observation_id,
-    w.ticket_ref,
+    w.isin,
     x.slot,
     x.rule_id,
     x.pre_max_score
@@ -340,14 +342,14 @@ ranked AS (
 SELECT
   'ENRICHED_OBSERVATION_ROW' AS section,
   o.observation_id,
-  o.ticket_ref,
-  o.tier,
+  o.isin,
+  o.issuer_class,
   o.region,
-  o.priority,
+  o.rating_band,
   w.a AS score_a,
   w.b AS score_b,
   w.c AS score_c,
-  r.decision_code AS winning_team,
+  r.decision_code AS winning_workstream,
   win.pre_max_score AS winning_score,
   e.routing_queue,
   e.sla_bucket,
