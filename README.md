@@ -2,27 +2,23 @@
 
 ## Expert system first—also a semantic layer
 
-**Primary lens: expert system.** The pattern here is classic **knowledge-based inference**: qualitative business facts (classifications, regions, rating bands) are matched against **wildcard hierarchy rules**, a matrix-style compatibility score is computed under the demo constraints, and a deterministic decision rule picks exactly one outcome per observation. The rules are maintained by people (governed updates), not learned from gradients—so behavior remains auditable end-to-end.
+**Primary lens: expert system.** Qualitative business facts (classifications, regions, rating bands) are matched against wildcard rules, scored with sparse matrix-style compatibility, and resolved by deterministic argmax. Rules are human-authored and auditable.
 
-**Same system as a semantic layer.** In production it also sat in the **semantic layer** role: fund-owned dimensions and **optional overrides** on top of a **vendor reference taxonomy** (here stylized as `ald_*`), so reporting and routing could use **effective** labels without discarding vendor lineage. The business story is “whose labels win for this analysis?”—that is semantic-layer work—even though the **engine** is an expert system under the hood.
-
-**Original article title:** [Building a Semantic Layer Using AI](https://dispassionatedeveloper.blogspot.com/2020/04/building-sql-based-expert-system-for.html) foregrounds the semantic-layer problem. The implementation here is still expert-system shaped: categorical inputs + rule matching + deterministic winner selection.
+**Also a semantic layer.** Fund-owned overrides (`fund_*_override`) sit on top of vendor reference attributes (`ald_*`) to produce **effective** labels used for scoring, while vendor lineage remains on each enriched row.
 
 ## Situation & solution (read this first)
 
-**What Aladdin (and similar platforms) does:** Each fixed income security arrives with a **vendor-defined classification hierarchy**—issuer type, region, rating band, and deeper levels—serving as the platform’s **reference taxonomy**.
+**Platform reality:** vendor-defined classification hierarchies arrive with each security.
 
-**What fund managers needed:** A way to **aggregate, compare, and route** securities using **their own** grouping rules when those rules **diverge** from the vendor’s. Without tooling, that meant **repeated manual data munging** (spreadsheet remaps, ad hoc joins) before every analysis or handoff.
+**Portfolio need:** fund teams still need custom grouping/routing when their taxonomy differs from the vendor taxonomy.
 
-**What the production system provided:** An **interactive semantic layer**. For **each security**, and for **whatever hierarchy level they chose** (issuer, region, rating bucket, …), users could enter an **optional override value**. When present, that value **replaces the vendor field for scoring, enrichment, and workstream assignment**; when absent, the **vendor value is used unchanged**. The **vendor attributes are always retained** on the row (`ald_*`) alongside overrides (`fund_*_override`) and the **computed effective** values actually fed into the engine—so PMs get **fund-native roll-ups** while **preserving lineage** back to the Aladdin-classified source for audit, compliance, and reconciliation.
+**System response:** optional fund overrides produce effective labels for scoring/routing while keeping raw vendor fields for lineage and audit.
 
 **What this repository demonstrates:** The same idea in **minimal SQL**: synthetic `ald_*` + nullable `fund_*_override` → **effective** → kernelization → sparse matrix-style scores → argmax → **`ENRICHED_OBSERVATION_ROW`**. The worked example includes a **fund region override** that rebooks a US corporate from **NA** to **EMEA** for internal aggregation **without** editing the vendor feed.
 
 *Aladdin® is a registered trademark of BlackRock, Inc. This project is **not** affiliated with BlackRock, uses **no** vendor or production data, and all ISINs are **fabricated**.*
 
-This repository is a **public, synthetic** companion to a production system I designed and built at a former employer. **Technical primer** (linear algebra, argmax gate): **How the scoring engine works**. **Sample I/O** (vendor vs fund vs effective): **Demo data model** and **Worked example**.
-
-**Original write-up (2019 context, published 2020):** [Building a Semantic Layer Using AI](https://dispassionatedeveloper.blogspot.com/2020/04/building-sql-based-expert-system-for.html) — title emphasizes the **semantic layer**; the body is the **SQL expert system** pipeline documented here.
+This repository is a **public, synthetic** companion to a production system I designed and built at a former employer. See the technical primer below plus worked sample I/O.
 
 ## What this repo is for
 
@@ -48,11 +44,9 @@ The UI can render many columns for diagnostics, but the core intuition is straig
 
 **Resemblance to a tiny net.** You can still view this as “score vector + hard gate.” In this demo, the score vector is produced by sparse matrix-style dot products over kernelized hierarchy dimensions.
 
-### Stakeholder view (what each “run” decides)
+### Stakeholder view (what each run decides)
 
-This is the operational view of the pipeline described in **[Situation & solution](#situation--solution-read-this-first)** above.
-
-For every **security** in scope, the engine **chooses exactly one subject option**—here, an **analytics / operations workstream**—and **attaches that outcome’s descriptor fields**. **Inputs** combine **vendor reference** (`ald_*`) with optional **fund overrides** (`fund_*_override`) maintained in the semantic layer UI; **scoring uses the effective hierarchy** after overrides. The **output** is **one enriched row per security** (vendor columns, optional overrides, and **computed effective** values used for scoring), so PMs can **aggregate on their taxonomy** while preserving lineage to Aladdin-classified data for audit and reconciliation.
+For each security, the engine picks one workstream (argmax) and attaches descriptors. Inputs are vendor fields plus optional fund overrides; scoring uses effective values. Output is one enriched row per security with both lineage and decision artifacts.
 
 **Separated for clarity (facts vs policy vs math):**
 
@@ -94,7 +88,7 @@ with a **deterministic tie-break** among argmax ties (smallest `rule_id` in the 
 
 The original pattern is a 2D scoring surface (observations x hierarchy rules). With added independent dimension rules (for example region grouping), the conceptual model becomes multi-axis: observation x rule-family x rule-index.
 
-In practice we still execute this as multiple sparse 2D computations (one per rule family) and then merge deterministically:
+In practice, we execute multiple sparse 2D computations (one per rule family) and merge deterministically:
 - hierarchy family: sparse compatibility scoring + argmax for decisioning
 - dimension family: one-level rule matching for additional descriptors
 
@@ -102,9 +96,9 @@ So the architecture generalizes toward a tensor-like model while keeping SQL exe
 
 ### Runtime practicality at large scale
 
-This approach is practical for real-time enrichment on large datasets because runtime work is reduced to sparse feature matching and dot-product-style aggregation, rather than repeated row-by-row string-heavy rule evaluation. In operational terms: keep rule kernels compact, keep observation features pre-normalized, and let indexed joins/aggregations do the heavy lifting.
+This is practical at runtime because evaluation is sparse matching + aggregation, not repeated string-heavy row logic.
 
-- **At-a-glance flow:** ingest observation -> apply fund overrides -> derive effective hierarchy -> kernelize sparse features -> sparse score aggregation vs rule kernels -> argmax gate -> attach descriptors from winning hierarchy rule.
+- **At-a-glance flow:** ingest -> apply overrides -> derive effective labels -> sparse score aggregation -> argmax -> attach hierarchy + dimension descriptors.
 - **Why it scales:** sparse kernels mean each observation activates only a small subset of features, so scoring cost grows with active features, not with the full rule text surface.
 - **Latency control:** precompute or incrementally refresh observation feature projections; avoid rebuilding kernels from raw text for every request.
 - **Database fit:** B-tree indexes on join keys (`observation_id`, `rule_id`, feature axis/value) and selective entry points (TVFs/endpoints with required filters) keep plans stable under load.
@@ -192,7 +186,7 @@ Experts maintain hierarchy rules with wildcard support. The engine kernelizes hi
 
 ### Output: enriched rows (vendor + overrides + effective + winner)
 
-**`ENRICHED_OBSERVATION_ROW`** mirrors the SQL: full **`ald_*` / `fund_*`**, computed **`effective_*`** (what was kernelized), scores, wildcard-precedence `descriptor_01..10` from matched hierarchy rule, and winning workstream. *Illustrative name* omitted from the query.
+**`ENRICHED_OBSERVATION_ROW`** mirrors SQL output: full `ald_*`/`fund_*`, computed `effective_*`, scores, winning workstream, hierarchy descriptors, and dimension descriptors.
 
 | isin | ald_region | fund_region_override | effective_region | effective_issuer | effective_rating | score_a | score_b | score_c | winning_workstream | winning_score | descriptor_01 | descriptor_02 | descriptor_03 | descriptor_04 |
 |------|------------|----------------------|------------------|------------------|------------------|---------|---------|---------|---------------------|---------------|---------------|---------------|---------------|---------------|
