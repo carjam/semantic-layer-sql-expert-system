@@ -78,45 +78,48 @@ with a **deterministic tie-break** among argmax ties (smallest `rule_id` in the 
 | **Outcomes ($K$ rows)** | Workstreams: sovereign rates (NA), corporate credit (NA), corporate credit (EMEA)—each with `routing_queue`, `sla_bucket`, `cost_center` enrichment. |
 | **Deliverable** | **`ENRICHED_OBSERVATION_ROW`**: one row per ISIN with raw attributes, wide scores `a/b/c`, `winning_workstream`, and attached operational metadata. |
 
-## Worked example (what the demo is doing)
+## Worked example (Aladdin-style FI data)
 
-The script uses **three synthetic fixed income instruments** with qualitative fields similar to a **security-master / Aladdin-style FI reference** slice (ISIN-like id, issuer class, trading region, broad rating bucket). **ISINs are fabricated** (`…ALDIN…` pattern); they are **not** live instruments and **not** from any vendor feed. *Aladdin® is a registered trademark of BlackRock, Inc.; this repo is independent and for illustration only.*
+The SQL loads **three synthetic fixed income instruments** as if they were rows from an **Aladdin-style security / reference extract**: you would normally see many more columns (identifiers, static terms, analytics flags); here we keep only the qualitative fields that feed **kernelization** and scoring. **ISINs are fabricated** (`…ALDIN…` pattern)—not live instruments or vendor data. *Aladdin® is a registered trademark of BlackRock, Inc.; this repo is independent and for illustration only.*
 
-Read the **inputs** in the `INSERT` statements, run the file, and match the last result set **`ENRICHED_OBSERVATION_ROW`** to the tables below.
+Match the **`INSERT` into `demo_observations`** and the final **`ENRICHED_OBSERVATION_ROW`** grid to the tables below.
 
-### Inputs: observations (raw qualitative feed)
+### Inputs: Aladdin-style reference slice (observations before enrichment)
 
-These rows are the **observations**—what might arrive from an upstream reference or analytics feed **before** workstream-specific enrichment is applied:
+How the same three instruments might appear on an institutional **FI reference / security-master** layout. The runnable script persists only **`isin`**, **`issuer_class`**, **`region`**, and **`rating_band`** in `demo_observations` (those four drive kernelization and scores). Columns *illustrative security description*, *asset type (FI)*, and *ccy* in the table below are **README-only**—they typify fields that often sit beside the scored attributes on an Aladdin-style extract.
 
-| isin            | issuer_class | region | rating_band |
-|-----------------|----------------|--------|-------------|
-| US00ALDINFI01   | sovereign      | na     | ig          |
-| DE00ALDINFI02   | corporate      | emea   | core        |
-| US00ALDINFI03   | corporate      | na     | core        |
+| isin (primary id) | illustrative security description | asset type (FI) | **issuer_class** | **region** (book / analytics) | ccy | **rating_band** |
+|-------------------|-----------------------------------|-----------------|------------------|-------------------------------|-----|-----------------|
+| US00ALDINFI01 | US Treasury note (synthetic) | Government bond | **sovereign** | **na** | USD | **ig** |
+| DE00ALDINFI02 | EUR IG corporate note (synthetic) | Corporate bond | **corporate** | **emea** | EUR | **core** |
+| US00ALDINFI03 | US IG corporate bond (synthetic) | Corporate bond | **corporate** | **na** | USD | **core** |
 
-### Inputs: subject options (decisions + semantic descriptors)
+- **`issuer_class`**, **`region`**, **`rating_band`**: map into binary features (`fi_sovereign` / `fi_corporate`, `region_na` / `region_emea`, `rating_ig` when band = `ig`).
+- **`rating_band` = `core`**: means “not flagged as IG in this toy feed” (no `rating_ig` bit); it is **not** a vendor enum from Aladdin.
 
-Each **subject option** is a possible **analytics / operations workstream** (`decision_code`) plus **user-maintained** descriptor columns (queue, SLA tier, book attribution), analogous to the “white” semantic columns in the original UI:
+### Inputs: subject options (workstreams + semantic “white columns”)
 
-| decision_code          | routing_queue      | sla_bucket  | cost_center      |
-|------------------------|--------------------|-------------|------------------|
-| ald_sov_rates_na       | SOV-RATES-NA       | T+0_CLOSE   | BOOK_NA_GOVT     |
-| ald_corp_credit_na     | CORP-CREDIT-NA     | T+1_STD     | BOOK_NA_CREDIT   |
-| ald_corp_credit_emea   | CORP-CREDIT-EMEA   | T+1_STD     | BOOK_EMEA_CREDIT |
+Each row is a candidate **downstream workstream**—similar to attaching an **operations / analytics queue** and **book** in a semantic layer. `decision_code` is the key joined after **argmax**.
 
-Experts also define **weights** over shared **atomic features** (`fi_sovereign`, `fi_corporate`, `region_na`, `region_emea`, `rating_ig`) so each workstream gets a numeric score against every security. The demo **kernelizes** the text columns into those binary features before scoring.
+| decision_code (system key) | Aladdin-style workstream label | routing_queue | sla_bucket | cost_center (book tag) |
+|----------------------------|--------------------------------|---------------|------------|-------------------------|
+| `ald_sov_rates_na` | Sovereign & rates — North America | SOV-RATES-NA | T+0_CLOSE | BOOK_NA_GOVT |
+| `ald_corp_credit_na` | Corporate credit — North America | CORP-CREDIT-NA | T+1_STD | BOOK_NA_CREDIT |
+| `ald_corp_credit_emea` | Corporate credit — EMEA | CORP-CREDIT-EMEA | T+1_STD | BOOK_EMEA_CREDIT |
 
-### Output: observations enriched with the best subject’s descriptors
+Experts also maintain **$K$**: non-negative weights on `fi_sovereign`, `fi_corporate`, `region_*`, `rating_ig` (row-normalized in the script). The engine **kernelizes** each security row, computes scores, **UNPIVOT**-style reshapes wide scores (`a`/`b`/`c`), then applies **argmax** (tie-break on `rule_id`).
 
-The pipeline scores **every observation against every rule** (zeros when there is no feature overlap), takes **argmax**, then joins the **winning** row’s descriptors. Result set **`ENRICHED_OBSERVATION_ROW`** is **one row per security** with raw fields, wide scores for rules 1–3 (`score_a`, `score_b`, `score_c`), the winner (`winning_workstream`), and the chosen descriptors:
+### Output: enriched Aladdin-style rows (one line per ISIN)
 
-| isin            | issuer_class | region | rating_band | score_a | score_b | score_c | winning_workstream     | winning_score | routing_queue      | sla_bucket  | cost_center       |
-|-----------------|--------------|--------|-------------|---------|---------|---------|------------------------|---------------|--------------------|-------------|-------------------|
-| US00ALDINFI01   | sovereign    | na     | ig          | 1.00    | 0.60    | 0.00    | ald_sov_rates_na       | 1.00          | SOV-RATES-NA       | T+0_CLOSE   | BOOK_NA_GOVT      |
-| DE00ALDINFI02   | corporate    | emea   | core        | 0.00    | 0.40    | 1.00    | ald_corp_credit_emea   | 1.00          | CORP-CREDIT-EMEA   | T+1_STD     | BOOK_EMEA_CREDIT  |
-| US00ALDINFI03   | corporate    | na     | core        | 0.00    | 1.00    | 0.40    | ald_corp_credit_na     | 1.00          | CORP-CREDIT-NA     | T+1_STD     | BOOK_NA_CREDIT    |
+**`ENRICHED_OBSERVATION_ROW`**: raw scored attributes (as in SQL), plus the **winning workstream** and its operational metadata. *Illustrative description* is for the README only; the query output repeats `isin`, `issuer_class`, `region`, `rating_band`.
 
-In short: the **US sovereign IG NA** name routes to **sovereign rates (NA)**; the **EMEA corporate** name to **corporate credit (EMEA)**; the **US corporate** name to **corporate credit (NA)**. Earlier result sets in the same script (`VARIABLE_SPACE_*`, `SUBJECT_SPACE_BY_ISIN`, `UNPIVOT_LONG`, etc.) show the geometry and the UNPIVOT step; this table is the **consumer-shaped** outcome.
+| isin | illustrative description | issuer_class | region | rating_band | score_a | score_b | score_c | winning_workstream | winning_score | routing_queue | sla_bucket | cost_center |
+|------|--------------------------|--------------|--------|-------------|---------|---------|---------|-------------------|---------------|---------------|------------|-------------|
+| US00ALDINFI01 | US Treasury note (synthetic) | sovereign | na | ig | 1.00 | 0.60 | 0.00 | `ald_sov_rates_na` | 1.00 | SOV-RATES-NA | T+0_CLOSE | BOOK_NA_GOVT |
+| DE00ALDINFI02 | EUR IG corporate note (synthetic) | corporate | emea | core | 0.00 | 0.40 | 1.00 | `ald_corp_credit_emea` | 1.00 | CORP-CREDIT-EMEA | T+1_STD | BOOK_EMEA_CREDIT |
+| US00ALDINFI03 | US IG corporate bond (synthetic) | corporate | na | core | 0.00 | 1.00 | 0.40 | `ald_corp_credit_na` | 1.00 | CORP-CREDIT-NA | T+1_STD | BOOK_NA_CREDIT |
+
+**Readout:** US govt **IG** **NA** → **sovereign rates (NA)** queue; EMEA **corporate** → **corporate credit (EMEA)**; US **corporate** **NA** → **corporate credit (NA)**. Earlier result sets in the script (`VARIABLE_SPACE_*`, `SUBJECT_SPACE_BY_ISIN`, `UNPIVOT_LONG`, …) show the linear-algebra layout; this grid is the **consumer-shaped** join you would feed to reporting or downstream risk stacks.
 
 ## Quick start (PostgreSQL)
 
