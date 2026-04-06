@@ -76,6 +76,8 @@ $$
 
 and the outcome score is the maximum rule score among rows for that outcome.
 
+The denominator is **not a fixed `/3`**. It is the rule's non-wildcard axis count, with a floor of `3` retained for backward compatibility with the original 3-level scoring behavior.
+
 **Wide scores and ranking.** Internally the enriched routine still forms outcome score slots (`a`,`b`,`c`) and applies argmax ranking deterministically (tie-break by `rule_id`).
 
 **Logic gate (hard max).** The discrete decision is
