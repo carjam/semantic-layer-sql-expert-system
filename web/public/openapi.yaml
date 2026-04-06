@@ -95,6 +95,42 @@ paths:
           $ref: "#/components/responses/BadRequest"
         "404":
           $ref: "#/components/responses/HierarchyRuleNotFound"
+    patch:
+      tags: [HierarchyRules]
+      summary: Update hierarchy rule fields
+      operationId: patchHierarchyRule
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/HierarchyRulePatch"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HierarchyRuleSingleResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          description: Rule or hierarchy rule not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorBody"
+    delete:
+      tags: [HierarchyRules]
+      summary: Delete hierarchy rule
+      operationId: deleteHierarchyRule
+      responses:
+        "204":
+          description: Deleted
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/HierarchyRuleNotFound"
 
   /api/dimension-rules:
     get:
@@ -176,42 +212,6 @@ paths:
       tags: [DimensionRules]
       summary: Delete one dimension enrichment rule
       operationId: deleteDimensionRule
-      responses:
-        "204":
-          description: Deleted
-        "400":
-          $ref: "#/components/responses/BadRequest"
-        "404":
-          $ref: "#/components/responses/HierarchyRuleNotFound"
-    patch:
-      tags: [HierarchyRules]
-      summary: Update hierarchy rule fields
-      operationId: patchHierarchyRule
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/HierarchyRulePatch"
-      responses:
-        "200":
-          description: Updated
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/HierarchyRuleSingleResponse"
-        "400":
-          $ref: "#/components/responses/BadRequest"
-        "404":
-          description: Rule or hierarchy rule not found
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorBody"
-    delete:
-      tags: [HierarchyRules]
-      summary: Delete hierarchy rule
-      operationId: deleteHierarchyRule
       responses:
         "204":
           description: Deleted
