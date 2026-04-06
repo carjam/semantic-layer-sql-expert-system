@@ -45,6 +45,14 @@ git push -u origin main
 
 If you **already created an empty repo on GitHub**, clone it into this folder’s parent and copy these files in, or add `origin` as above.
 
+**Git author:** If the first commit used placeholder `user.name` / `user.email` (local to this repo only), set your real identity and fix the author:
+
+```bash
+git config user.name "Your Name"
+git config user.email "you@example.com"
+git commit --amend --reset-author --no-edit
+```
+
 ## License
 
 Content and demo SQL are provided for portfolio use; adapt as you see fit.
