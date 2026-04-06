@@ -1,15 +1,7 @@
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
-import { computeEnrichedRows } from "@/lib/engine";
+import { loadEnrichedRows } from "@/lib/loadEnrichedRows";
 
 export async function GET() {
-  const [observations, rules, weights, descriptors] = await Promise.all([
-    prisma.observation.findMany({ orderBy: { id: "asc" } }),
-    prisma.rule.findMany({ orderBy: { id: "asc" } }),
-    prisma.ruleWeight.findMany(),
-    prisma.descriptor.findMany(),
-  ]);
-
-  const rows = computeEnrichedRows(observations, rules, weights, descriptors);
+  const rows = await loadEnrichedRows();
   return NextResponse.json({ rows });
 }
