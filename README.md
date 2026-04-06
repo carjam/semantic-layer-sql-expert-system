@@ -117,6 +117,10 @@ psql -U postgres -d postgres -f sql/postgres/demo.sql
 sqlcmd -S . -d master -i sql/sqlserver/demo.sql
 ```
 
+### Preview this README in a browser (GitHub-like)
+
+Opening `README.md` directly in a browser usually shows **plain text**. On **GitHub**, the same file is rendered automatically on the repository home page. To preview locally: `pip install markdown`, then `python scripts/render_readme_preview.py`, then open **`README.preview.html`** (generated next to `README.md`; listed in `.gitignore`).
+
 ## After you create a GitHub remote
 
 ```bash
