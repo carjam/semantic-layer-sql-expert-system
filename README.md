@@ -66,7 +66,11 @@ with a **deterministic tie-break** among argmax ties (smallest `rule_id` in the 
 - **Command:** Run the **Quick start** sections below for PostgreSQL or SQL Server.
 - **Full Postgres run (no local `psql`):** With **Docker** running (e.g. Docker Desktop), from repo root run `.\scripts\run_postgres_demo_docker.ps1` (Windows) or `bash scripts/run_postgres_demo_docker.sh` (macOS/Linux). This starts an **ephemeral** `postgres:16-alpine` container, executes the demo, prints all result sets (including **`ENRICHED_OBSERVATION_ROW`**), then removes the container.
 - **Syntax check (no DB):** `pip install pglast` then `python scripts/verify_postgres_demo.py` — confirms the Postgres script is valid SQL (verified in development: **27** statements parse cleanly).
-- **Toy UI (Next.js):** `web/` — SQLite + Prisma, REST CRUD for per-outcome **descriptors** (`routing_queue`, `sla_bucket`, `cost_center`), a screen for **enriched** rows (same pipeline as **`ENRICHED_OBSERVATION_ROW`**), and **`/api-docs`** with an **OpenAPI 3** spec (`web/public/openapi.yaml`) plus Swagger UI. See **`web/.env.example`** and run `cd web && npm install && npx prisma migrate dev && npm run dev`.
+- **Toy UI (Next.js):** `web/` — SQLite + Prisma, REST CRUD for per-outcome **descriptors** (`routing_queue`, `sla_bucket`, `cost_center`), a screen for **enriched** rows (same pipeline as **`ENRICHED_OBSERVATION_ROW`**), and **`/api-docs`** with an **OpenAPI 3** spec (`web/public/openapi.yaml`) plus Swagger UI. See **`web/.env.example`** and run `cd web && npm install && npx prisma migrate dev && npm run dev`. **Tests:** `cd web && npm run test:coverage` (Vitest; coverage targets **`src/lib`** and **`src/app/api`**, ≥90% lines/branches).
+
+**Enriched page (`/enriched`) — toy UI**
+
+![Enriched observations: vendor vs effective fields, scores, winner, and routing descriptors](docs/images/enriched-output.png)
 - **Main result to check:** final grid **`ENRICHED_OBSERVATION_ROW`** (security + chosen workstream + queue / SLA / book); optionally **`UNPIVOT_LONG`** and **`SUBJECT_SPACE_BY_ISIN`**.
 
 ### Limitations (negative space)
@@ -80,6 +84,7 @@ with a **deterministic tie-break** among argmax ties (smallest `rule_id` in the 
 | Path | Purpose |
 |------|--------|
 | `docs/case-study.md` | Production / org narrative; ties original system to this repo’s **Aladdin-style FI** portfolio demo |
+| `docs/images/enriched-output.png` | Screenshot of the **Enriched output** screen in the Next.js toy UI (`/enriched`) |
 | `sql/postgres/demo.sql` | End-to-end **Aladdin-style FI** reference demo (PostgreSQL; synthetic ISINs) |
 | `sql/sqlserver/demo.sql` | Same pipeline, T-SQL (closer to the original SQL Server post) |
 | `scripts/render_readme_preview.py` | Optional: `README.md` → `README.preview.html` for local viewing |
@@ -150,6 +155,8 @@ Experts also maintain **$K$**: non-negative weights on `fi_sovereign`, `fi_corpo
 # From repo root — Aladdin-style FI demo (synthetic ISINs); adjust connection flags
 psql -U postgres -d postgres -f sql/postgres/demo.sql
 ```
+
+After a successful run, **`demo_*` tables remain** in the database so you can run your own `SELECT`s; re-running the script replaces them.
 
 ### Without local `psql` (Docker)
 

@@ -30,6 +30,9 @@
 -- UNPIVOT-shaped pipeline: PostgreSQL uses LATERAL VALUES to match SQL Server
 -- UNPIVOT (wide a,b,c -> long rows). Then argmax -> join raw feed + semantic
 -- descriptors on one row per observation (ENRICHED_OBSERVATION_ROW).
+--
+-- The script runs in a single transaction (BEGIN … COMMIT) so it is atomic; on
+-- success, demo_* tables remain for ad hoc queries (re-run safe via DROP IF EXISTS).
 -- =============================================================================
 
 BEGIN;
@@ -377,4 +380,4 @@ JOIN demo_rules r ON r.rule_id = win.rule_id
 JOIN demo_rule_enrichment e ON e.rule_id = win.rule_id
 ORDER BY o.observation_id;
 
-ROLLBACK;
+COMMIT;
