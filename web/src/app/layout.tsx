@@ -15,7 +15,7 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "Routing & enrichment — portfolio demo",
   description:
-    "Illustrative walkthrough: how routing queues, SLAs, and books attach to sample securities after a workstream is chosen. Synthetic data only.",
+    "Illustrative walkthrough: how hierarchy rules and descriptor columns attach to sample securities after matrix-constrained scoring and argmax. Synthetic data only.",
 };
 
 export default function RootLayout({

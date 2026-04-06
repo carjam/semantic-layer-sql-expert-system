@@ -163,7 +163,7 @@ LEFT JOIN demo_observation_features ofe ON ofe.observation_id = o.observation_id
 GROUP BY o.observation_id, o.isin
 ORDER BY o.observation_id;
 
--- Runtime hierarchy rules (no static K table): specificity drives real-time score.
+-- Runtime hierarchy rules (no static K table): matrix-constraint scoring drives real-time score.
 SELECT
   'HIERARCHY_RULE_SPACE' AS section,
   hr.hierarchy_rule_id,
@@ -217,7 +217,11 @@ dense_scores AS (
     oh.isin,
     r.rule_id,
     r.decision_code,
-    COALESCE(MAX(((hr.hierarchy_top <> '*')::INT + (hr.hierarchy_middle <> '*')::INT + (hr.hierarchy_bottom <> '*')::INT) / 3.0), 0) AS score
+    COALESCE(MAX((
+      (CASE WHEN hr.hierarchy_top = oh.hierarchy_top THEN 1 ELSE 0 END) +
+      (CASE WHEN hr.hierarchy_middle = '*' THEN 0 WHEN hr.hierarchy_middle = oh.hierarchy_middle THEN 1 ELSE 0 END) +
+      (CASE WHEN hr.hierarchy_bottom = '*' THEN 0 WHEN hr.hierarchy_bottom = oh.hierarchy_bottom THEN 1 ELSE 0 END)
+    ) / 3.0), 0) AS score
   FROM obs_hierarchy oh
   CROSS JOIN demo_rules r
   LEFT JOIN demo_hierarchy_enrichment_rules hr
@@ -262,7 +266,11 @@ scores AS (
     oh.isin,
     r.rule_id,
     r.decision_code,
-    COALESCE(MAX(((hr.hierarchy_top <> '*')::INT + (hr.hierarchy_middle <> '*')::INT + (hr.hierarchy_bottom <> '*')::INT) / 3.0), 0) AS score
+    COALESCE(MAX((
+      (CASE WHEN hr.hierarchy_top = oh.hierarchy_top THEN 1 ELSE 0 END) +
+      (CASE WHEN hr.hierarchy_middle = '*' THEN 0 WHEN hr.hierarchy_middle = oh.hierarchy_middle THEN 1 ELSE 0 END) +
+      (CASE WHEN hr.hierarchy_bottom = '*' THEN 0 WHEN hr.hierarchy_bottom = oh.hierarchy_bottom THEN 1 ELSE 0 END)
+    ) / 3.0), 0) AS score
   FROM obs_hierarchy oh
   CROSS JOIN demo_rules r
   LEFT JOIN demo_hierarchy_enrichment_rules hr
@@ -296,7 +304,11 @@ WITH dense_scores AS (
     oh.observation_id,
     oh.isin,
     r.rule_id,
-    COALESCE(MAX(((hr.hierarchy_top <> '*')::INT + (hr.hierarchy_middle <> '*')::INT + (hr.hierarchy_bottom <> '*')::INT) / 3.0), 0) AS score
+    COALESCE(MAX((
+      (CASE WHEN hr.hierarchy_top = oh.hierarchy_top THEN 1 ELSE 0 END) +
+      (CASE WHEN hr.hierarchy_middle = '*' THEN 0 WHEN hr.hierarchy_middle = oh.hierarchy_middle THEN 1 ELSE 0 END) +
+      (CASE WHEN hr.hierarchy_bottom = '*' THEN 0 WHEN hr.hierarchy_bottom = oh.hierarchy_bottom THEN 1 ELSE 0 END)
+    ) / 3.0), 0) AS score
   FROM (
     SELECT
       o.observation_id,
@@ -365,7 +377,11 @@ WITH dense_scores AS (
     oh.observation_id,
     oh.isin,
     r.rule_id,
-    COALESCE(MAX(((hr.hierarchy_top <> '*')::INT + (hr.hierarchy_middle <> '*')::INT + (hr.hierarchy_bottom <> '*')::INT) / 3.0), 0) AS score
+    COALESCE(MAX((
+      (CASE WHEN hr.hierarchy_top = oh.hierarchy_top THEN 1 ELSE 0 END) +
+      (CASE WHEN hr.hierarchy_middle = '*' THEN 0 WHEN hr.hierarchy_middle = oh.hierarchy_middle THEN 1 ELSE 0 END) +
+      (CASE WHEN hr.hierarchy_bottom = '*' THEN 0 WHEN hr.hierarchy_bottom = oh.hierarchy_bottom THEN 1 ELSE 0 END)
+    ) / 3.0), 0) AS score
   FROM (
     SELECT
       o.observation_id,

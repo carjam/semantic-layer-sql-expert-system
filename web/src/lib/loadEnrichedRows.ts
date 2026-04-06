@@ -43,9 +43,23 @@ type SqlScoreRow = {
   score: number;
 };
 
-/** Loads enriched rows by executing SQL scoring logic in SQLite (source-of-truth aligned with demo SQL). */
+/** Loads enriched rows via SQL using matrix-constraint scoring and argmax gating. */
 export async function loadEnrichedRows() {
   noStore();
+  const scoreExpr = `COALESCE(MAX((
+      (CASE WHEN hr.hierarchy_top = oe.hierarchy_top THEN 1 ELSE 0 END) +
+      (CASE
+        WHEN hr.hierarchy_middle = '*' THEN 0
+        WHEN hr.hierarchy_middle = oe.hierarchy_middle THEN 1
+        ELSE 0
+      END) +
+      (CASE
+        WHEN hr.hierarchy_bottom = '*' THEN 0
+        WHEN hr.hierarchy_bottom = oe.hierarchy_bottom THEN 1
+        ELSE 0
+      END)
+    ) / 3.0), 0)`;
+
   const [rows, scoreRows, rules] = await Promise.all([
     prisma.$queryRawUnsafe<SqlEnrichedRow[]>(`
       WITH obs_effective AS (
@@ -76,7 +90,7 @@ export async function loadEnrichedRows() {
           oe.isin,
           r.rule_id,
           r.decision_code,
-          COALESCE(MAX(((hr.hierarchy_top <> '*') + (hr.hierarchy_middle <> '*') + (hr.hierarchy_bottom <> '*')) / 3.0), 0) AS score
+          ${scoreExpr} AS score
         FROM obs_effective oe
         CROSS JOIN rules r
         LEFT JOIN hierarchy_enrichment_rules hr
@@ -200,7 +214,7 @@ export async function loadEnrichedRows() {
       SELECT
         oe.observation_id,
         r.rule_id,
-        COALESCE(MAX(((hr.hierarchy_top <> '*') + (hr.hierarchy_middle <> '*') + (hr.hierarchy_bottom <> '*')) / 3.0), 0) AS score
+        ${scoreExpr} AS score
       FROM obs_effective oe
       CROSS JOIN rules r
       LEFT JOIN hierarchy_enrichment_rules hr

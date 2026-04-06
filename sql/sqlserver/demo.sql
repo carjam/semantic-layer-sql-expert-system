@@ -173,9 +173,11 @@ scores AS (
     oh.isin,
     r.rule_id,
     r.decision_code,
-    ISNULL(MAX((CAST((CASE WHEN hr.hierarchy_top <> '*' THEN 1 ELSE 0 END
-                 + CASE WHEN hr.hierarchy_middle <> '*' THEN 1 ELSE 0 END
-                 + CASE WHEN hr.hierarchy_bottom <> '*' THEN 1 ELSE 0 END) AS DECIMAL(6,5)) / 3.0)), 0) AS score
+    ISNULL(MAX((CAST((
+      (CASE WHEN hr.hierarchy_top = oh.hierarchy_top THEN 1 ELSE 0 END) +
+      (CASE WHEN hr.hierarchy_middle = '*' THEN 0 WHEN hr.hierarchy_middle = oh.hierarchy_middle THEN 1 ELSE 0 END) +
+      (CASE WHEN hr.hierarchy_bottom = '*' THEN 0 WHEN hr.hierarchy_bottom = oh.hierarchy_bottom THEN 1 ELSE 0 END)
+    ) AS DECIMAL(6,5)) / 3.0)), 0) AS score
   FROM obs_hierarchy oh
   CROSS JOIN #rules r
   LEFT JOIN #hierarchy_enrichment_rules hr
@@ -215,9 +217,11 @@ scores AS (
     oh.isin,
     r.rule_id,
     r.decision_code,
-    ISNULL(MAX((CAST((CASE WHEN hr.hierarchy_top <> '*' THEN 1 ELSE 0 END
-                 + CASE WHEN hr.hierarchy_middle <> '*' THEN 1 ELSE 0 END
-                 + CASE WHEN hr.hierarchy_bottom <> '*' THEN 1 ELSE 0 END) AS DECIMAL(6,5)) / 3.0)), 0) AS score
+    ISNULL(MAX((CAST((
+      (CASE WHEN hr.hierarchy_top = oh.hierarchy_top THEN 1 ELSE 0 END) +
+      (CASE WHEN hr.hierarchy_middle = '*' THEN 0 WHEN hr.hierarchy_middle = oh.hierarchy_middle THEN 1 ELSE 0 END) +
+      (CASE WHEN hr.hierarchy_bottom = '*' THEN 0 WHEN hr.hierarchy_bottom = oh.hierarchy_bottom THEN 1 ELSE 0 END)
+    ) AS DECIMAL(6,5)) / 3.0)), 0) AS score
   FROM obs_hierarchy oh
   CROSS JOIN #rules r
   LEFT JOIN #hierarchy_enrichment_rules hr
@@ -249,9 +253,11 @@ ORDER BY observation_id;
     oh.observation_id,
     oh.isin,
     r.rule_id,
-    ISNULL(MAX((CAST((CASE WHEN hr.hierarchy_top <> '*' THEN 1 ELSE 0 END
-                 + CASE WHEN hr.hierarchy_middle <> '*' THEN 1 ELSE 0 END
-                 + CASE WHEN hr.hierarchy_bottom <> '*' THEN 1 ELSE 0 END) AS DECIMAL(6,5)) / 3.0)), 0) AS score
+    ISNULL(MAX((CAST((
+      (CASE WHEN hr.hierarchy_top = oh.hierarchy_top THEN 1 ELSE 0 END) +
+      (CASE WHEN hr.hierarchy_middle = '*' THEN 0 WHEN hr.hierarchy_middle = oh.hierarchy_middle THEN 1 ELSE 0 END) +
+      (CASE WHEN hr.hierarchy_bottom = '*' THEN 0 WHEN hr.hierarchy_bottom = oh.hierarchy_bottom THEN 1 ELSE 0 END)
+    ) AS DECIMAL(6,5)) / 3.0)), 0) AS score
   FROM (
     SELECT
       o.observation_id,
@@ -312,9 +318,11 @@ ORDER BY observation_id, decision_slot;
     oh.observation_id,
     oh.isin,
     r.rule_id,
-    ISNULL(MAX((CAST((CASE WHEN hr.hierarchy_top <> '*' THEN 1 ELSE 0 END
-                 + CASE WHEN hr.hierarchy_middle <> '*' THEN 1 ELSE 0 END
-                 + CASE WHEN hr.hierarchy_bottom <> '*' THEN 1 ELSE 0 END) AS DECIMAL(6,5)) / 3.0)), 0) AS score
+    ISNULL(MAX((CAST((
+      (CASE WHEN hr.hierarchy_top = oh.hierarchy_top THEN 1 ELSE 0 END) +
+      (CASE WHEN hr.hierarchy_middle = '*' THEN 0 WHEN hr.hierarchy_middle = oh.hierarchy_middle THEN 1 ELSE 0 END) +
+      (CASE WHEN hr.hierarchy_bottom = '*' THEN 0 WHEN hr.hierarchy_bottom = oh.hierarchy_bottom THEN 1 ELSE 0 END)
+    ) AS DECIMAL(6,5)) / 3.0)), 0) AS score
   FROM (
     SELECT
       o.observation_id,

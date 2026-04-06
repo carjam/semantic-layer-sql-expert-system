@@ -226,6 +226,7 @@ export function EnrichedClient({ initialRows }: { initialRows: EnrichedObservati
                 <strong className="text-slate-800 dark:text-slate-200">Slate</strong> = observation feed;{" "}
                 <strong className="text-emerald-800 dark:text-emerald-200">Emerald</strong> = scores, winner, and descriptors.
               </p>
+              <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">Scoring mode: Matrix constraint mode</p>
             </div>
             <div className="flex flex-wrap items-center gap-2">
               <button

@@ -48,11 +48,9 @@ export default function Home() {
             When a security is classified, where should it go next?
           </h1>
           <p className="mt-5 text-base leading-relaxed text-zinc-600 sm:text-lg dark:text-zinc-400">
-            Operations teams need consistent answers: which <strong className="font-semibold text-zinc-800 dark:text-zinc-200">routing queue</strong>,{" "}
-            <strong className="font-semibold text-zinc-800 dark:text-zinc-200">SLA</strong>, and{" "}
-            <strong className="font-semibold text-zinc-800 dark:text-zinc-200">book</strong> apply once the firm’s rules pick a workstream. This
-            experience walks through that handoff using simple sample securities—so you can see the business outcome without touching a
-            spreadsheet.
+            Operations teams need consistent answers: which <strong className="font-semibold text-zinc-800 dark:text-zinc-200">workstream</strong>{" "}
+            and <strong className="font-semibold text-zinc-800 dark:text-zinc-200">descriptor values</strong> apply once hierarchy rules match an
+            observation. This experience walks through that handoff using sample securities, vendor attributes, and optional fund overrides.
           </p>
         </header>
 
@@ -61,13 +59,13 @@ export default function Home() {
             Explore the demo
           </h2>
           <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            <Card href="/descriptors" title="Routing &amp; book details">
-              Set or adjust the operational labels tied to each workstream: where items route, what service level applies, and which book they
-              sit in. Changes here flow through to the results you see next.
+            <Card href="/descriptors" title="Hierarchy rules &amp; descriptors">
+              Define wildcard hierarchy matching and the descriptor columns attached to each rule. Changes here flow through to the enriched
+              output.
             </Card>
-            <Card href="/enriched" title="Securities &amp; final routing">
-              Review each sample security end-to-end: what drove the decision, which workstream won, and the queue, SLA, and book that were
-              attached. Export a file if you want to share or compare outside the app.
+            <Card href="/enriched" title="Securities &amp; enriched output">
+              Review each sample security end-to-end: effective attributes, matrix-constrained scores, winning workstream, and descriptors.
+              Export a CSV if you want to compare outside the app.
             </Card>
             <Card href="/api-docs" title="Technical reference" variant="muted">
               For colleagues in technology or integration: machine-readable API description and try-it-yourself console. Most day-to-day users

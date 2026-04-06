@@ -4,7 +4,7 @@ info:
   description: |
     REST API for the toy UI.
     Primary model is hierarchy-driven enrichment:
-    observations -> effective hierarchy -> wildcard rule matching -> runtime match-strength scores -> argmax -> enriched row.
+    observations -> effective hierarchy -> wildcard rule matching -> matrix-constraint scores -> argmax -> enriched row.
   version: 1.1.0
 
 servers:
