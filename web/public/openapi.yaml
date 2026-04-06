@@ -4,7 +4,7 @@ info:
   description: |
     REST API for the toy UI.
     Primary model is hierarchy-driven enrichment:
-    observations -> effective hierarchy -> wildcard rule matching -> matrix-constraint scores -> argmax -> enriched row.
+    observations -> effective hierarchy -> sparse matrix-style scores -> argmax + independent dimension overlays -> enriched row.
   version: 1.1.0
 
 servers:
@@ -16,6 +16,8 @@ tags:
     description: Runtime health checks for demo SQL routines.
   - name: HierarchyRules
     description: CRUD for hierarchy matching rules (rule_id + variable-depth wildcard pattern, levels 1..7 + descriptor_01..10).
+  - name: DimensionRules
+    description: CRUD for one-level dataset dimension enrichment rules (independent from hierarchy precedence).
   - name: Rules
     description: Outcome/workstream reference data.
   - name: Enriched
@@ -89,6 +91,94 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HierarchyRuleSingleResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/HierarchyRuleNotFound"
+
+  /api/dimension-rules:
+    get:
+      tags: [DimensionRules]
+      summary: List dimension enrichment rules
+      operationId: listDimensionRules
+      responses:
+        "200":
+          description: Ordered by dimensionRuleId asc
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DimensionRuleListResponse"
+    post:
+      tags: [DimensionRules]
+      summary: Create dimension enrichment rule
+      operationId: createDimensionRule
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DimensionRuleCreate"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DimensionRuleSingleResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+
+  /api/dimension-rules/{dimensionRuleId}:
+    parameters:
+      - name: dimensionRuleId
+        in: path
+        required: true
+        schema:
+          type: integer
+          minimum: 1
+    get:
+      tags: [DimensionRules]
+      summary: Get one dimension enrichment rule
+      operationId: getDimensionRule
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DimensionRuleSingleResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/HierarchyRuleNotFound"
+    patch:
+      tags: [DimensionRules]
+      summary: Update one dimension enrichment rule
+      operationId: patchDimensionRule
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DimensionRulePatch"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DimensionRuleSingleResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/HierarchyRuleNotFound"
+    delete:
+      tags: [DimensionRules]
+      summary: Delete one dimension enrichment rule
+      operationId: deleteDimensionRule
+      responses:
+        "204":
+          description: Deleted
         "400":
           $ref: "#/components/responses/BadRequest"
         "404":
@@ -279,12 +369,16 @@ components:
           type: string
         hierarchyLevel04:
           type: string
+          description: Generic level 4 hierarchy match key.
         hierarchyLevel05:
           type: string
+          description: Generic level 5 hierarchy match key.
         hierarchyLevel06:
           type: string
+          description: Generic level 6 hierarchy match key.
         hierarchyLevel07:
           type: string
+          description: Generic level 7 hierarchy match key.
         hierarchyLevels:
           type: array
           minItems: 7
@@ -326,15 +420,19 @@ components:
         hierarchyLevel04:
           type: string
           default: "*"
+          description: Optional generic level 4 hierarchy match key.
         hierarchyLevel05:
           type: string
           default: "*"
+          description: Optional generic level 5 hierarchy match key.
         hierarchyLevel06:
           type: string
           default: "*"
+          description: Optional generic level 6 hierarchy match key.
         hierarchyLevel07:
           type: string
           default: "*"
+          description: Optional generic level 7 hierarchy match key.
         hierarchyLevels:
           type: array
           minItems: 3
@@ -358,18 +456,72 @@ components:
           type: string
         hierarchyLevel04:
           type: string
+          description: Optional level 4 match key.
         hierarchyLevel05:
           type: string
+          description: Optional level 5 match key.
         hierarchyLevel06:
           type: string
+          description: Optional level 6 match key.
         hierarchyLevel07:
           type: string
+          description: Optional level 7 match key.
         hierarchyLevels:
           type: array
           minItems: 3
           maxItems: 7
           items:
             type: string
+        descriptorValues:
+          $ref: "#/components/schemas/DescriptorValues"
+
+    DimensionRuleItem:
+      type: object
+      required: [dimensionRuleId, dimensionName, dimensionValue, descriptorValues]
+      properties:
+        dimensionRuleId:
+          type: integer
+        dimensionName:
+          type: string
+        dimensionValue:
+          type: string
+        descriptorValues:
+          $ref: "#/components/schemas/DescriptorValues"
+
+    DimensionRuleListResponse:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/DimensionRuleItem"
+
+    DimensionRuleSingleResponse:
+      type: object
+      required: [item]
+      properties:
+        item:
+          $ref: "#/components/schemas/DimensionRuleItem"
+
+    DimensionRuleCreate:
+      type: object
+      required: [dimensionName, dimensionValue, descriptorValues]
+      properties:
+        dimensionName:
+          type: string
+        dimensionValue:
+          type: string
+        descriptorValues:
+          $ref: "#/components/schemas/DescriptorValues"
+
+    DimensionRulePatch:
+      type: object
+      properties:
+        dimensionName:
+          type: string
+        dimensionValue:
+          type: string
         descriptorValues:
           $ref: "#/components/schemas/DescriptorValues"
 
@@ -388,7 +540,11 @@ components:
         - hierarchyMiddle
         - hierarchyBottom
         - matchedHierarchyRuleId
+        - matchedDimensionRuleId
+        - matchedDimensionName
+        - matchedDimensionValue
         - descriptorValues
+        - dimensionDescriptorValues
         - activeFeatureIds
         - scoreByRuleId
         - scoreA
@@ -440,7 +596,18 @@ components:
         matchedHierarchyRuleId:
           type: integer
           nullable: true
+        matchedDimensionRuleId:
+          type: integer
+          nullable: true
+        matchedDimensionName:
+          type: string
+          nullable: true
+        matchedDimensionValue:
+          type: string
+          nullable: true
         descriptorValues:
+          $ref: "#/components/schemas/DescriptorValues"
+        dimensionDescriptorValues:
           $ref: "#/components/schemas/DescriptorValues"
         activeFeatureIds:
           type: array

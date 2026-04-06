@@ -24,6 +24,10 @@ describe("GET /api/hierarchy-rules", () => {
         hierarchyTop: "Debt",
         hierarchyMiddle: "Govt",
         hierarchyBottom: "sovereign",
+        hierarchyLevel04: "na",
+        hierarchyLevel05: "na",
+        hierarchyLevel06: "ig",
+        hierarchyLevel07: "ig",
         descriptor01: "rates_coverage",
         descriptor02: null,
         descriptor03: null,
@@ -42,6 +46,7 @@ describe("GET /api/hierarchy-rules", () => {
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body.items[0].hierarchyRuleId).toBe(1);
+    expect(body.items[0].hierarchyLevel04).toBe("na");
     expect(body.items[0].descriptorValues[0]).toBe("rates_coverage");
   });
 });
@@ -57,6 +62,10 @@ describe("POST /api/hierarchy-rules", () => {
       hierarchyTop: "Debt",
       hierarchyMiddle: "*",
       hierarchyBottom: "*",
+      hierarchyLevel04: "*",
+      hierarchyLevel05: "*",
+      hierarchyLevel06: "*",
+      hierarchyLevel07: "*",
       descriptor01: "general",
       descriptor02: null,
       descriptor03: null,
@@ -86,6 +95,7 @@ describe("POST /api/hierarchy-rules", () => {
     expect(res.status).toBe(201);
     const body = await res.json();
     expect(body.item.hierarchyRuleId).toBe(9);
+    expect(body.item.hierarchyLevel04).toBe("*");
   });
 });
 

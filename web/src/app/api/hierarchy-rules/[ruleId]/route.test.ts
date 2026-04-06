@@ -24,6 +24,10 @@ describe("GET /api/hierarchy-rules/:ruleId", () => {
       hierarchyTop: "Debt",
       hierarchyMiddle: "Govt",
       hierarchyBottom: "sovereign",
+      hierarchyLevel04: "na",
+      hierarchyLevel05: "na",
+      hierarchyLevel06: "ig",
+      hierarchyLevel07: "ig",
       descriptor01: "rates_coverage",
       descriptor02: null,
       descriptor03: null,
@@ -41,6 +45,7 @@ describe("GET /api/hierarchy-rules/:ruleId", () => {
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body.item.hierarchyRuleId).toBe(1);
+    expect(body.item.hierarchyLevel04).toBe("na");
   });
 });
 
@@ -55,6 +60,10 @@ describe("PATCH /api/hierarchy-rules/:ruleId", () => {
       hierarchyTop: "Debt",
       hierarchyMiddle: "Corp",
       hierarchyBottom: "corporate",
+      hierarchyLevel04: "emea",
+      hierarchyLevel05: "emea",
+      hierarchyLevel06: "core",
+      hierarchyLevel07: "core",
       descriptor01: "credit_coverage",
       descriptor02: null,
       descriptor03: null,
@@ -71,12 +80,20 @@ describe("PATCH /api/hierarchy-rules/:ruleId", () => {
     const req = new Request("http://localhost", {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ ruleId: 3, hierarchyMiddle: "Corp", hierarchyBottom: "corporate", descriptorValues: ["credit_coverage"] }),
+      body: JSON.stringify({
+        ruleId: 3,
+        hierarchyMiddle: "Corp",
+        hierarchyBottom: "corporate",
+        hierarchyLevel04: "emea",
+        hierarchyLevel05: "emea",
+        descriptorValues: ["credit_coverage"],
+      }),
     });
     const res = await PATCH(req, { params: Promise.resolve({ ruleId: "1" }) });
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body.item.hierarchyMiddle).toBe("Corp");
+    expect(body.item.hierarchyLevel04).toBe("emea");
   });
 });
 

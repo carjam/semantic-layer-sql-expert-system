@@ -17,7 +17,14 @@ type SqlEnrichedRow = {
   hierarchy_top: string;
   hierarchy_middle: string;
   hierarchy_bottom: string;
+  hierarchy_level_04: string;
+  hierarchy_level_05: string;
+  hierarchy_level_06: string;
+  hierarchy_level_07: string;
   matched_hierarchy_rule_id: number | null;
+  matched_dimension_rule_id: number | null;
+  matched_dimension_name: string | null;
+  matched_dimension_value: string | null;
   descriptor_01: string | null;
   descriptor_02: string | null;
   descriptor_03: string | null;
@@ -28,6 +35,16 @@ type SqlEnrichedRow = {
   descriptor_08: string | null;
   descriptor_09: string | null;
   descriptor_10: string | null;
+  dimension_descriptor_01: string | null;
+  dimension_descriptor_02: string | null;
+  dimension_descriptor_03: string | null;
+  dimension_descriptor_04: string | null;
+  dimension_descriptor_05: string | null;
+  dimension_descriptor_06: string | null;
+  dimension_descriptor_07: string | null;
+  dimension_descriptor_08: string | null;
+  dimension_descriptor_09: string | null;
+  dimension_descriptor_10: string | null;
   active_feature_ids: string | null;
   score_a: number | null;
   score_b: number | null;
@@ -78,7 +95,14 @@ export async function loadEnrichedRows() {
     hierarchyTop: r.hierarchy_top,
     hierarchyMiddle: r.hierarchy_middle,
     hierarchyBottom: r.hierarchy_bottom,
+    hierarchyLevel04: r.hierarchy_level_04,
+    hierarchyLevel05: r.hierarchy_level_05,
+    hierarchyLevel06: r.hierarchy_level_06,
+    hierarchyLevel07: r.hierarchy_level_07,
     matchedHierarchyRuleId: r.matched_hierarchy_rule_id === null ? null : Number(r.matched_hierarchy_rule_id),
+    matchedDimensionRuleId: r.matched_dimension_rule_id === null ? null : Number(r.matched_dimension_rule_id),
+    matchedDimensionName: r.matched_dimension_name,
+    matchedDimensionValue: r.matched_dimension_value,
     descriptorValues: [
       r.descriptor_01,
       r.descriptor_02,
@@ -90,6 +114,18 @@ export async function loadEnrichedRows() {
       r.descriptor_08,
       r.descriptor_09,
       r.descriptor_10,
+    ],
+    dimensionDescriptorValues: [
+      r.dimension_descriptor_01,
+      r.dimension_descriptor_02,
+      r.dimension_descriptor_03,
+      r.dimension_descriptor_04,
+      r.dimension_descriptor_05,
+      r.dimension_descriptor_06,
+      r.dimension_descriptor_07,
+      r.dimension_descriptor_08,
+      r.dimension_descriptor_09,
+      r.dimension_descriptor_10,
     ],
     activeFeatureIds: (r.active_feature_ids ?? "")
       .split(",")

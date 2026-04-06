@@ -68,6 +68,10 @@ const observationColumns: ObsCol[] = [
   { id: "hier_top", label: "Hierarchy top", minWidth: "5rem", maxWidth: "8rem", render: (r) => r.hierarchyTop },
   { id: "hier_mid", label: "Hierarchy middle", minWidth: "6rem", maxWidth: "9rem", render: (r) => r.hierarchyMiddle },
   { id: "hier_bot", label: "Hierarchy bottom", minWidth: "6rem", maxWidth: "10rem", render: (r) => r.hierarchyBottom },
+  { id: "hier_l04", label: "L4 Vendor region", minWidth: "6rem", maxWidth: "10rem", render: (r) => r.hierarchyLevel04 },
+  { id: "hier_l05", label: "L5 Effective region", minWidth: "6rem", maxWidth: "10rem", render: (r) => r.hierarchyLevel05 },
+  { id: "hier_l06", label: "L6 Vendor rating", minWidth: "6rem", maxWidth: "10rem", render: (r) => r.hierarchyLevel06 },
+  { id: "hier_l07", label: "L7 Effective rating", minWidth: "6rem", maxWidth: "10rem", render: (r) => r.hierarchyLevel07 },
   {
     id: "hier_rule",
     label: "Matched hierarchy rule",
@@ -75,6 +79,28 @@ const observationColumns: ObsCol[] = [
     maxWidth: "9rem",
     mono: true,
     render: (r) => (r.matchedHierarchyRuleId === null ? "—" : String(r.matchedHierarchyRuleId)),
+  },
+  {
+    id: "dim_rule",
+    label: "Matched dimension rule",
+    minWidth: "6rem",
+    maxWidth: "11rem",
+    mono: true,
+    render: (r) => (r.matchedDimensionRuleId === null ? "—" : String(r.matchedDimensionRuleId)),
+  },
+  {
+    id: "dim_name",
+    label: "Matched dimension name",
+    minWidth: "7rem",
+    maxWidth: "12rem",
+    render: (r) => r.matchedDimensionName ?? "—",
+  },
+  {
+    id: "dim_value",
+    label: "Matched dimension value",
+    minWidth: "7rem",
+    maxWidth: "12rem",
+    render: (r) => r.matchedDimensionValue ?? "—",
   },
   {
     id: "descriptive_value_a",
@@ -182,6 +208,16 @@ const enrichColumns: EnrichCol[] = [
   { id: "desc_08", label: "Descriptor 08", minWidth: "7rem", maxWidth: "12rem", render: (r) => r.descriptorValues[7] ?? "—" },
   { id: "desc_09", label: "Descriptor 09", minWidth: "7rem", maxWidth: "12rem", render: (r) => r.descriptorValues[8] ?? "—" },
   { id: "desc_10", label: "Descriptor 10", minWidth: "7rem", maxWidth: "12rem", render: (r) => r.descriptorValues[9] ?? "—" },
+  { id: "dim_desc_01", label: "Dim descriptor 01", minWidth: "7rem", maxWidth: "12rem", render: (r) => r.dimensionDescriptorValues[0] ?? "—" },
+  { id: "dim_desc_02", label: "Dim descriptor 02", minWidth: "7rem", maxWidth: "12rem", render: (r) => r.dimensionDescriptorValues[1] ?? "—" },
+  { id: "dim_desc_03", label: "Dim descriptor 03", minWidth: "7rem", maxWidth: "12rem", render: (r) => r.dimensionDescriptorValues[2] ?? "—" },
+  { id: "dim_desc_04", label: "Dim descriptor 04", minWidth: "7rem", maxWidth: "12rem", render: (r) => r.dimensionDescriptorValues[3] ?? "—" },
+  { id: "dim_desc_05", label: "Dim descriptor 05", minWidth: "7rem", maxWidth: "12rem", render: (r) => r.dimensionDescriptorValues[4] ?? "—" },
+  { id: "dim_desc_06", label: "Dim descriptor 06", minWidth: "7rem", maxWidth: "12rem", render: (r) => r.dimensionDescriptorValues[5] ?? "—" },
+  { id: "dim_desc_07", label: "Dim descriptor 07", minWidth: "7rem", maxWidth: "12rem", render: (r) => r.dimensionDescriptorValues[6] ?? "—" },
+  { id: "dim_desc_08", label: "Dim descriptor 08", minWidth: "7rem", maxWidth: "12rem", render: (r) => r.dimensionDescriptorValues[7] ?? "—" },
+  { id: "dim_desc_09", label: "Dim descriptor 09", minWidth: "7rem", maxWidth: "12rem", render: (r) => r.dimensionDescriptorValues[8] ?? "—" },
+  { id: "dim_desc_10", label: "Dim descriptor 10", minWidth: "7rem", maxWidth: "12rem", render: (r) => r.dimensionDescriptorValues[9] ?? "—" },
 ];
 
 const obsHeaderClass =
@@ -226,7 +262,7 @@ export function EnrichedClient({ initialRows }: { initialRows: EnrichedObservati
                 <strong className="text-slate-800 dark:text-slate-200">Slate</strong> = observation feed;{" "}
                 <strong className="text-emerald-800 dark:text-emerald-200">Emerald</strong> = scores, winner, and descriptors.
               </p>
-              <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">Scoring mode: Matrix constraint mode</p>
+              <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">Scoring mode: Sparse matrix-style (hierarchy) + dimension overlays</p>
             </div>
             <div className="flex flex-wrap items-center gap-2">
               <button

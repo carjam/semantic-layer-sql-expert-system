@@ -15,8 +15,16 @@ export type EnrichedObservationRow = {
   hierarchyTop: string;
   hierarchyMiddle: string;
   hierarchyBottom: string;
+  hierarchyLevel04: string;
+  hierarchyLevel05: string;
+  hierarchyLevel06: string;
+  hierarchyLevel07: string;
   matchedHierarchyRuleId: number | null;
+  matchedDimensionRuleId: number | null;
+  matchedDimensionName: string | null;
+  matchedDimensionValue: string | null;
   descriptorValues: Array<string | null>;
+  dimensionDescriptorValues: Array<string | null>;
   activeFeatureIds: number[];
   scoreByRuleId: Record<number, number>;
   scoreA: number;
@@ -174,8 +182,16 @@ export function computeEnrichedRows(
       hierarchyTop: hierarchy.hierarchyTop,
       hierarchyMiddle: hierarchy.hierarchyMiddle,
       hierarchyBottom: hierarchy.hierarchyBottom,
+      hierarchyLevel04: o.aldRegion,
+      hierarchyLevel05: effectiveRegion,
+      hierarchyLevel06: o.aldRatingBand,
+      hierarchyLevel07: effectiveRatingBand,
       matchedHierarchyRuleId: matched?.id ?? null,
+      matchedDimensionRuleId: null,
+      matchedDimensionName: null,
+      matchedDimensionValue: null,
       descriptorValues,
+      dimensionDescriptorValues: [null, null, null, null, null, null, null, null, null, null],
       activeFeatureIds: [...featureIds].sort((a, b) => a - b),
       scoreByRuleId,
       scoreA,

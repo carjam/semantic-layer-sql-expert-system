@@ -62,3 +62,22 @@ model HierarchyRule {
 
   @@map("demo_hierarchy_enrichment_rules")
 }
+
+/// One-level non-hierarchy dimensions for enrichment (e.g. vendor region grouping).
+model DimensionRule {
+  id           Int    @id @default(autoincrement()) @map("dimension_rule_id")
+  dimensionName String @map("dimension_name")
+  dimensionValue String @map("dimension_value")
+  descriptor01 String @map("descriptive_value_a")
+  descriptor02 String? @map("descriptive_value_b")
+  descriptor03 String? @map("descriptive_value_c")
+  descriptor04 String? @map("descriptive_value_d")
+  descriptor05 String? @map("descriptive_value_e")
+  descriptor06 String? @map("descriptive_value_f")
+  descriptor07 String? @map("descriptive_value_g")
+  descriptor08 String? @map("descriptive_value_h")
+  descriptor09 String? @map("descriptive_value_i")
+  descriptor10 String? @map("descriptive_value_j")
+
+  @@map("demo_dimension_enrichment_rules")
+}

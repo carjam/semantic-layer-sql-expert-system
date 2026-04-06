@@ -163,7 +163,11 @@ export default function DescriptorsPage() {
         <h1 className="text-2xl font-semibold tracking-tight text-zinc-900 dark:text-zinc-50">Hierarchy rule management</h1>
         <p className="mt-2 max-w-4xl text-sm leading-relaxed text-zinc-600 dark:text-zinc-400">
           Choose a decision rule, define the hierarchy match pattern (<code className="rounded bg-zinc-200 px-1 dark:bg-zinc-800">*</code> allowed), and set up to 10 descriptors.
-          Runtime scoring is derived from hierarchy match strength. Internal numeric IDs are auto-assigned by the database.
+          Levels 1..3 are commonly used in this demo; levels 4..7 are additional generic hierarchy slots. Runtime scoring is derived from hierarchy match strength.
+          Internal numeric IDs are auto-assigned by the database.
+        </p>
+        <p className="mt-1 max-w-4xl text-xs leading-relaxed text-zinc-500 dark:text-zinc-400">
+          Separate one-level dataset dimensions (for example vendor region groupings) are managed via <code className="rounded bg-zinc-200 px-1 dark:bg-zinc-800">/api/dimension-rules</code> and applied in enriched output independently from hierarchy precedence.
         </p>
 
         {error && <div className="mt-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800 dark:border-red-900 dark:bg-red-950 dark:text-red-200">{error}</div>}
@@ -181,10 +185,10 @@ export default function DescriptorsPage() {
                     <th className="py-2 pr-3 font-medium">Hierarchy top</th>
                     <th className="py-2 pr-3 font-medium">Hierarchy middle</th>
                     <th className="py-2 pr-3 font-medium">Hierarchy bottom</th>
-                    <th className="py-2 pr-3 font-medium">Hierarchy L4</th>
-                    <th className="py-2 pr-3 font-medium">Hierarchy L5</th>
-                    <th className="py-2 pr-3 font-medium">Hierarchy L6</th>
-                    <th className="py-2 pr-3 font-medium">Hierarchy L7</th>
+                    <th className="py-2 pr-3 font-medium">Hierarchy level 04</th>
+                    <th className="py-2 pr-3 font-medium">Hierarchy level 05</th>
+                    <th className="py-2 pr-3 font-medium">Hierarchy level 06</th>
+                    <th className="py-2 pr-3 font-medium">Hierarchy level 07</th>
                     {Array.from({ length: 10 }, (_, i) => (
                       <th key={`hdr-${i}`} className="py-2 pr-3 font-medium">Descriptor {String(i + 1).padStart(2, "0")}</th>
                     ))}
@@ -311,10 +315,10 @@ export default function DescriptorsPage() {
             <label className="flex flex-col gap-1 text-sm"><span className="text-zinc-500">Hierarchy top</span><input className="rounded-md border border-zinc-300 bg-white px-2 py-2 dark:border-zinc-600 dark:bg-zinc-950" value={createForm.hierarchyTop} onChange={(e) => setCreateForm((f) => ({ ...f, hierarchyTop: e.target.value }))} /></label>
             <label className="flex flex-col gap-1 text-sm"><span className="text-zinc-500">Hierarchy middle</span><input className="rounded-md border border-zinc-300 bg-white px-2 py-2 dark:border-zinc-600 dark:bg-zinc-950" value={createForm.hierarchyMiddle} onChange={(e) => setCreateForm((f) => ({ ...f, hierarchyMiddle: e.target.value }))} /></label>
             <label className="flex flex-col gap-1 text-sm"><span className="text-zinc-500">Hierarchy bottom</span><input className="rounded-md border border-zinc-300 bg-white px-2 py-2 dark:border-zinc-600 dark:bg-zinc-950" value={createForm.hierarchyBottom} onChange={(e) => setCreateForm((f) => ({ ...f, hierarchyBottom: e.target.value }))} /></label>
-            <label className="flex flex-col gap-1 text-sm"><span className="text-zinc-500">Hierarchy L4</span><input className="rounded-md border border-zinc-300 bg-white px-2 py-2 dark:border-zinc-600 dark:bg-zinc-950" value={createForm.hierarchyLevel04} onChange={(e) => setCreateForm((f) => ({ ...f, hierarchyLevel04: e.target.value }))} /></label>
-            <label className="flex flex-col gap-1 text-sm"><span className="text-zinc-500">Hierarchy L5</span><input className="rounded-md border border-zinc-300 bg-white px-2 py-2 dark:border-zinc-600 dark:bg-zinc-950" value={createForm.hierarchyLevel05} onChange={(e) => setCreateForm((f) => ({ ...f, hierarchyLevel05: e.target.value }))} /></label>
-            <label className="flex flex-col gap-1 text-sm"><span className="text-zinc-500">Hierarchy L6</span><input className="rounded-md border border-zinc-300 bg-white px-2 py-2 dark:border-zinc-600 dark:bg-zinc-950" value={createForm.hierarchyLevel06} onChange={(e) => setCreateForm((f) => ({ ...f, hierarchyLevel06: e.target.value }))} /></label>
-            <label className="flex flex-col gap-1 text-sm"><span className="text-zinc-500">Hierarchy L7</span><input className="rounded-md border border-zinc-300 bg-white px-2 py-2 dark:border-zinc-600 dark:bg-zinc-950" value={createForm.hierarchyLevel07} onChange={(e) => setCreateForm((f) => ({ ...f, hierarchyLevel07: e.target.value }))} /></label>
+            <label className="flex flex-col gap-1 text-sm"><span className="text-zinc-500">Hierarchy level 04</span><input className="rounded-md border border-zinc-300 bg-white px-2 py-2 dark:border-zinc-600 dark:bg-zinc-950" value={createForm.hierarchyLevel04} onChange={(e) => setCreateForm((f) => ({ ...f, hierarchyLevel04: e.target.value }))} /></label>
+            <label className="flex flex-col gap-1 text-sm"><span className="text-zinc-500">Hierarchy level 05</span><input className="rounded-md border border-zinc-300 bg-white px-2 py-2 dark:border-zinc-600 dark:bg-zinc-950" value={createForm.hierarchyLevel05} onChange={(e) => setCreateForm((f) => ({ ...f, hierarchyLevel05: e.target.value }))} /></label>
+            <label className="flex flex-col gap-1 text-sm"><span className="text-zinc-500">Hierarchy level 06</span><input className="rounded-md border border-zinc-300 bg-white px-2 py-2 dark:border-zinc-600 dark:bg-zinc-950" value={createForm.hierarchyLevel06} onChange={(e) => setCreateForm((f) => ({ ...f, hierarchyLevel06: e.target.value }))} /></label>
+            <label className="flex flex-col gap-1 text-sm"><span className="text-zinc-500">Hierarchy level 07</span><input className="rounded-md border border-zinc-300 bg-white px-2 py-2 dark:border-zinc-600 dark:bg-zinc-950" value={createForm.hierarchyLevel07} onChange={(e) => setCreateForm((f) => ({ ...f, hierarchyLevel07: e.target.value }))} /></label>
           </div>
 
           <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">

@@ -30,6 +30,7 @@ BEGIN;
 
 DROP FUNCTION IF EXISTS demo_get_enriched_rows();
 DROP FUNCTION IF EXISTS demo_get_dense_scores();
+DROP TABLE IF EXISTS demo_dimension_enrichment_rules;
 DROP TABLE IF EXISTS demo_hierarchy_enrichment_rules;
 DROP TABLE IF EXISTS demo_rules;
 DROP TABLE IF EXISTS demo_observations;
@@ -74,6 +75,23 @@ CREATE TABLE demo_hierarchy_enrichment_rules (
   descriptive_value_j TEXT
 );
 
+-- One-level non-hierarchy dimension enrichment rules (independent from hierarchy model).
+CREATE TABLE demo_dimension_enrichment_rules (
+  dimension_rule_id SMALLINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  dimension_name    TEXT NOT NULL,
+  dimension_value   TEXT NOT NULL,
+  descriptive_value_a TEXT NOT NULL,
+  descriptive_value_b TEXT,
+  descriptive_value_c TEXT,
+  descriptive_value_d TEXT,
+  descriptive_value_e TEXT,
+  descriptive_value_f TEXT,
+  descriptive_value_g TEXT,
+  descriptive_value_h TEXT,
+  descriptive_value_i TEXT,
+  descriptive_value_j TEXT
+);
+
 INSERT INTO demo_rules (rule_id, decision_code) VALUES
   (1, 'ald_sov_rates_na'),
   (2, 'ald_corp_credit_na'),
@@ -104,6 +122,15 @@ INSERT INTO demo_hierarchy_enrichment_rules (
   (3, 'Debt', 'Corp',  'corporate', 'credit_coverage', 'CORP-CREDIT-EMEA', 'T+1_STD', 'BOOK_EMEA_CREDIT'),
   (2, 'Debt', '*',     '*',         'general_debt_coverage', 'CORP-CREDIT-NA', 'T+1_STD', 'BOOK_NA_CREDIT');
 
+-- Dimension rules: one-level matching (e.g., country/region/rating groupings) outside hierarchy depth.
+INSERT INTO demo_dimension_enrichment_rules (
+  dimension_name, dimension_value,
+  descriptive_value_a, descriptive_value_b
+) VALUES
+  ('vendor_region', 'na',   'REGION_NA',   'North America coverage'),
+  ('vendor_region', 'emea', 'REGION_EMEA', 'EMEA coverage'),
+  ('vendor_region', '*',    'REGION_OTHER','Non-core region fallback');
+
 -- Canonical scoring routine used by both demo output and web app API.
 -- Implementation shape: sparse kernel features + dot-product style aggregation.
 CREATE OR REPLACE FUNCTION demo_get_dense_scores()
@@ -127,10 +154,10 @@ AS $$
         ELSE 'Deriv'
       END AS hierarchy_middle,
       COALESCE(NULLIF(BTRIM(o.fund_issuer_class_override), ''), o.ald_issuer_class) AS hierarchy_bottom,
-      COALESCE(NULLIF(BTRIM(o.fund_region_override), ''), o.ald_region) AS hierarchy_level_04,
-      COALESCE(NULLIF(BTRIM(o.fund_rating_band_override), ''), o.ald_rating_band) AS hierarchy_level_05,
-      '*'::TEXT AS hierarchy_level_06,
-      '*'::TEXT AS hierarchy_level_07
+      o.ald_region AS hierarchy_level_04,
+      COALESCE(NULLIF(BTRIM(o.fund_region_override), ''), o.ald_region) AS hierarchy_level_05,
+      o.ald_rating_band AS hierarchy_level_06,
+      COALESCE(NULLIF(BTRIM(o.fund_rating_band_override), ''), o.ald_rating_band) AS hierarchy_level_07
     FROM demo_observations o
   ),
   obs_kernel AS (
@@ -261,6 +288,9 @@ RETURNS TABLE (
   hierarchy_level_06 TEXT,
   hierarchy_level_07 TEXT,
   matched_hierarchy_rule_id SMALLINT,
+  matched_dimension_rule_id SMALLINT,
+  matched_dimension_name TEXT,
+  matched_dimension_value TEXT,
   descriptor_01 TEXT,
   descriptor_02 TEXT,
   descriptor_03 TEXT,
@@ -271,6 +301,16 @@ RETURNS TABLE (
   descriptor_08 TEXT,
   descriptor_09 TEXT,
   descriptor_10 TEXT,
+  dimension_descriptor_01 TEXT,
+  dimension_descriptor_02 TEXT,
+  dimension_descriptor_03 TEXT,
+  dimension_descriptor_04 TEXT,
+  dimension_descriptor_05 TEXT,
+  dimension_descriptor_06 TEXT,
+  dimension_descriptor_07 TEXT,
+  dimension_descriptor_08 TEXT,
+  dimension_descriptor_09 TEXT,
+  dimension_descriptor_10 TEXT,
   active_feature_ids TEXT,
   score_a NUMERIC,
   score_b NUMERIC,
@@ -325,10 +365,10 @@ AS $$
         ELSE 'Deriv'
       END AS hierarchy_middle,
       COALESCE(NULLIF(BTRIM(o.fund_issuer_class_override), ''), o.ald_issuer_class) AS hierarchy_bottom,
-      COALESCE(NULLIF(BTRIM(o.fund_region_override), ''), o.ald_region) AS hierarchy_level_04,
-      COALESCE(NULLIF(BTRIM(o.fund_rating_band_override), ''), o.ald_rating_band) AS hierarchy_level_05,
-      '*'::TEXT AS hierarchy_level_06,
-      '*'::TEXT AS hierarchy_level_07
+      o.ald_region AS hierarchy_level_04,
+      COALESCE(NULLIF(BTRIM(o.fund_region_override), ''), o.ald_region) AS hierarchy_level_05,
+      o.ald_rating_band AS hierarchy_level_06,
+      COALESCE(NULLIF(BTRIM(o.fund_rating_band_override), ''), o.ald_rating_band) AS hierarchy_level_07
     FROM demo_observations o
   ),
   hierarchy_candidates AS (
@@ -370,6 +410,49 @@ AS $$
       ROW_NUMBER() OVER (PARTITION BY observation_id ORDER BY specificity DESC, hierarchy_rule_id ASC) AS rn
     FROM hierarchy_candidates
   ),
+  obs_dimensions AS (
+    SELECT o.observation_id, 'vendor_region'::TEXT AS dimension_name, o.ald_region AS dimension_value
+    FROM demo_observations o
+    UNION ALL
+    SELECT o.observation_id, 'effective_region'::TEXT AS dimension_name,
+      COALESCE(NULLIF(BTRIM(o.fund_region_override), ''), o.ald_region) AS dimension_value
+    FROM demo_observations o
+    UNION ALL
+    SELECT o.observation_id, 'vendor_rating'::TEXT AS dimension_name, o.ald_rating_band AS dimension_value
+    FROM demo_observations o
+    UNION ALL
+    SELECT o.observation_id, 'effective_rating'::TEXT AS dimension_name,
+      COALESCE(NULLIF(BTRIM(o.fund_rating_band_override), ''), o.ald_rating_band) AS dimension_value
+    FROM demo_observations o
+  ),
+  dimension_candidates AS (
+    SELECT
+      od.observation_id,
+      dr.dimension_rule_id,
+      dr.dimension_name,
+      dr.dimension_value,
+      dr.descriptive_value_a,
+      dr.descriptive_value_b,
+      dr.descriptive_value_c,
+      dr.descriptive_value_d,
+      dr.descriptive_value_e,
+      dr.descriptive_value_f,
+      dr.descriptive_value_g,
+      dr.descriptive_value_h,
+      dr.descriptive_value_i,
+      dr.descriptive_value_j,
+      CASE WHEN dr.dimension_value = '*' THEN 0 ELSE 1 END AS specificity
+    FROM obs_dimensions od
+    JOIN demo_dimension_enrichment_rules dr
+      ON dr.dimension_name = od.dimension_name
+     AND (dr.dimension_value = '*' OR dr.dimension_value = od.dimension_value)
+  ),
+  dimension_ranked AS (
+    SELECT
+      *,
+      ROW_NUMBER() OVER (PARTITION BY observation_id ORDER BY specificity DESC, dimension_rule_id ASC) AS rn
+    FROM dimension_candidates
+  ),
   feature_ids AS (
     SELECT
       x.observation_id,
@@ -406,11 +489,14 @@ AS $$
       ELSE 'Deriv'
     END AS hierarchy_middle,
     COALESCE(NULLIF(BTRIM(o.fund_issuer_class_override), ''), o.ald_issuer_class) AS hierarchy_bottom,
-    COALESCE(NULLIF(BTRIM(o.fund_region_override), ''), o.ald_region) AS hierarchy_level_04,
-    COALESCE(NULLIF(BTRIM(o.fund_rating_band_override), ''), o.ald_rating_band) AS hierarchy_level_05,
-    '*'::TEXT AS hierarchy_level_06,
-    '*'::TEXT AS hierarchy_level_07,
+    o.ald_region AS hierarchy_level_04,
+    COALESCE(NULLIF(BTRIM(o.fund_region_override), ''), o.ald_region) AS hierarchy_level_05,
+    o.ald_rating_band AS hierarchy_level_06,
+    COALESCE(NULLIF(BTRIM(o.fund_rating_band_override), ''), o.ald_rating_band) AS hierarchy_level_07,
     hm.hierarchy_rule_id AS matched_hierarchy_rule_id,
+    dm.dimension_rule_id AS matched_dimension_rule_id,
+    dm.dimension_name AS matched_dimension_name,
+    dm.dimension_value AS matched_dimension_value,
     hm.descriptive_value_a AS descriptor_01,
     hm.descriptive_value_b AS descriptor_02,
     hm.descriptive_value_c AS descriptor_03,
@@ -421,6 +507,16 @@ AS $$
     hm.descriptive_value_h AS descriptor_08,
     hm.descriptive_value_i AS descriptor_09,
     hm.descriptive_value_j AS descriptor_10,
+    dm.descriptive_value_a AS dimension_descriptor_01,
+    dm.descriptive_value_b AS dimension_descriptor_02,
+    dm.descriptive_value_c AS dimension_descriptor_03,
+    dm.descriptive_value_d AS dimension_descriptor_04,
+    dm.descriptive_value_e AS dimension_descriptor_05,
+    dm.descriptive_value_f AS dimension_descriptor_06,
+    dm.descriptive_value_g AS dimension_descriptor_07,
+    dm.descriptive_value_h AS dimension_descriptor_08,
+    dm.descriptive_value_i AS dimension_descriptor_09,
+    dm.descriptive_value_j AS dimension_descriptor_10,
     fi.active_feature_ids,
     w.a AS score_a,
     w.b AS score_b,
@@ -433,6 +529,7 @@ AS $$
   JOIN ranked win ON win.observation_id = o.observation_id AND win.rn = 1
   JOIN demo_rules r ON r.rule_id = win.rule_id
   LEFT JOIN hierarchy_ranked hm ON hm.observation_id = o.observation_id AND hm.rn = 1
+  LEFT JOIN dimension_ranked dm ON dm.observation_id = o.observation_id AND dm.rn = 1
   LEFT JOIN feature_ids fi ON fi.observation_id = o.observation_id
   ORDER BY o.observation_id;
 $$;
@@ -454,6 +551,15 @@ SELECT
 FROM demo_hierarchy_enrichment_rules hr
 JOIN demo_rules r ON r.rule_id = hr.rule_id
 ORDER BY hr.hierarchy_rule_id;
+
+SELECT
+  'DIMENSION_RULE_SPACE' AS section,
+  dr.dimension_rule_id,
+  dr.dimension_name,
+  dr.dimension_value,
+  dr.descriptive_value_a
+FROM demo_dimension_enrichment_rules dr
+ORDER BY dr.dimension_rule_id;
 
 -- ---------------------------------------------------------------------------
 -- Final enriched output now comes from the canonical table-valued function.
