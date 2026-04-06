@@ -22,7 +22,7 @@ This repository is a **public, synthetic** companion to a production system I de
 
 ## What this repo is for
 
-- **Interview narrative:** Production context, constraints, performance, integrations, and lessons in `docs/case-study.md` (this README holds the **Aladdin-style FI demo**, **technical primer**, **worked example**, and quick starts).
+- **Case-study narrative:** Production context, constraints, performance, integrations, and lessons in `docs/case-study.md` (this README holds the **Aladdin-style FI demo**, **technical primer**, **worked example**, and quick starts).
 - **Technical proof of familiarity:** Run the SQL scripts end-to-end and inspect canonical outputs (`HIERARCHY_RULE_SPACE`, `ENRICHED_OBSERVATION_ROW`) plus the shared Postgres routines.
 - **Not a reproduction:** No proprietary schemas, data, or code from the employer; ISINs and attributes are **fabricated** for pedagogy.
 
