@@ -13,8 +13,9 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Semantic layer demo UI",
-  description: "Descriptor CRUD and enriched observation rows (toy Next.js + Prisma)",
+  title: "Routing & enrichment — portfolio demo",
+  description:
+    "Illustrative walkthrough: how routing queues, SLAs, and books attach to sample securities after a workstream is chosen. Synthetic data only.",
 };
 
 export default function RootLayout({

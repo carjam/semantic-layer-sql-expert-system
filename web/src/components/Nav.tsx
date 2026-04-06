@@ -15,20 +15,20 @@ export function Nav({
     <header className="border-b border-zinc-200 bg-white/80 backdrop-blur dark:border-zinc-800 dark:bg-zinc-950/80">
       <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-3 px-4 py-3">
         <Link href="/" className="font-semibold tracking-tight text-zinc-900 dark:text-zinc-50">
-          Semantic layer demo
+          Routing &amp; enrichment
         </Link>
         <nav className="flex flex-wrap gap-1">
           <Link href="/" className={current === "home" ? active : link}>
             Home
           </Link>
           <Link href="/descriptors" className={current === "descriptors" ? active : link}>
-            Descriptors
+            Routing fields
           </Link>
           <Link href="/enriched" className={current === "enriched" ? active : link}>
-            Enriched output
+            Results
           </Link>
           <Link href="/api-docs" className={current === "api-docs" ? active : link}>
-            API (OpenAPI)
+            API
           </Link>
         </nav>
       </div>
